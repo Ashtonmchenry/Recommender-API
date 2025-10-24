@@ -1,0 +1,2 @@
+event,user_id,movie_id,timestamp,platform,_kafka_topic,_kafka_partition,_kafka_offset,_kafka_ts
+watch,440,2021,2025-10-22T22:54:31Z,web,aerosparks.watch,4,2,2025-10-22T22:54:31.438000+00:00

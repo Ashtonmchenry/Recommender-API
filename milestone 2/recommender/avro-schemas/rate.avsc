@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "RateEvent",
+  "namespace": "aerosparks",
+  "fields": [
+    { "name": "event",
+      "type": { "type": "enum", "name": "EventTypeRate", "symbols": ["rate"]}
+    },
+    { "name": "user_id", "type": "long" },
+    { "name": "movie_id", "type": "long" },
+    { "name": "rating", "type": "float" },
+    { "name": "timestamp", "type": "string" }
+  ]
+}

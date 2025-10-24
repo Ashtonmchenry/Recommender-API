@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+prometheus-client
+pydantic
+pandas
+pyarrow
+confluent-kafka
+python-dotenv
+scikit-learn
+numpy
+pytest
+avro
+fastavro
+requests
+confluent-kafka["schemaregistry"]
+pyarrow

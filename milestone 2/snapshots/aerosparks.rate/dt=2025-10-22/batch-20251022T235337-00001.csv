@@ -1,0 +1,2 @@
+event,user_id,movie_id,rating,timestamp,_kafka_topic,_kafka_partition,_kafka_offset,_kafka_ts
+rate,952,3335,2.0,2025-10-22T23:01:09Z,aerosparks.rate,4,1,2025-10-22T23:01:09.916000+00:00

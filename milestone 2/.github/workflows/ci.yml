@@ -1,0 +1,24 @@
+name: CI
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+      - name: Build Docker
+        run: docker build -f docker/recommender.Dockerfile -t ghcr.io/${{ github.repository }}/reco:${{ github.sha }} .
+      - name: Login GHCR
+        if: ${{ secrets.GHCR_TOKEN }}
+        run: echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Push
+        if: ${{ secrets.GHCR_TOKEN }}
+        run: docker push ghcr.io/${{ github.repository }}/reco:${{ github.sha }}

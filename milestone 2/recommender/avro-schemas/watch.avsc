@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "WatchEvent",
+  "namespace": "aerosparks",
+  "fields": [
+    { "name": "event", "type": { "type": "enum", "name": "EventTypeWatch", "symbols": ["watch"] } },
+    { "name": "user_id", "type": "long" },
+    { "name": "movie_id", "type": "long" },
+    { "name": "timestamp", "type": "string" },
+    { "name": "platform", "type": ["null","string"], "default": null }
+  ]
+}

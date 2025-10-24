@@ -1,0 +1,6 @@
+version: v0.1
+created: 2025-09-25
+artifact_path: model_registry/v0.1/
+image_digest: ""
+git_sha: ""
+data_snapshot_id: ""

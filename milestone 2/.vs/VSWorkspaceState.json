@@ -1,0 +1,14 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\docker",
+    "\\infra",
+    "\\recommender",
+    "\\scripts",
+    "\\service",
+    "\\stream",
+    "\\tests"
+  ],
+  "SelectedNode": "\\scripts\\probe.py",
+  "PreviewInSolutionExplorer": false
+}

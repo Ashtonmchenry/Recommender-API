@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+.env.*
+# Jupyter
+.ipynb_checkpoints/
+# OS
+.DS_Store
+Thumbs.db
+# Docker
+*.log
+# Coverage/pytest
+.htmlcov/
+.coverage*
+.pytest_cache/
+dist/
+build/

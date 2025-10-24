@@ -1,0 +1,13 @@
+# Example Cloud Run deployment manifest (placeholder)
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: reco-api
+spec:
+  template:
+    spec:
+      containers:
+      - image: ghcr.io/OWNER/REPO/reco:SHA
+        env:
+        - name: PORT
+          value: "8080"

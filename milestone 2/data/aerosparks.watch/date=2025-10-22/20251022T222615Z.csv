@@ -1,0 +1,2 @@
+event,user_id,movie_id,timestamp,platform
+watch,1,42,2025-10-22T22:26:13Z,web
