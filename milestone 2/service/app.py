@@ -6,8 +6,8 @@ app = FastAPI()
 reqs = Counter('recommend_requests_total','requests',['status'])
 lat = Histogram('recommend_latency_seconds','latency')
 
-@app.get('/healthz')
-def healthz():
+@app.get('/health')
+def health():
     return {"status":"ok","version":os.getenv('MODEL_VERSION','v0.1')}
 
 @app.get('/recommend/{user_id}')
