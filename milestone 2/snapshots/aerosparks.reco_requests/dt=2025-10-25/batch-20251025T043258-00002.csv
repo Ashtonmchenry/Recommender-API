@@ -1,0 +1,2 @@
+event,user_id,k,timestamp,_kafka_topic,_kafka_partition,_kafka_offset,_kafka_ts
+reco_request,999,5,2025-10-25T04:32:49Z,aerosparks.reco_requests,1,0,2025-10-25T04:32:49.365000+00:00

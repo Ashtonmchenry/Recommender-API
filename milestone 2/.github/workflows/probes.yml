@@ -1,14 +1,28 @@
-name: Probes
+name: probe-reco-api
+
 on:
   schedule:
-    - cron: '*/30 * * * *'  # every 30 minutes
+    - cron: "*/15 * * * *"   # every 15 minutes
+  workflow_dispatch:         # allow manual trigger
+
 jobs:
   probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
       - run: pip install -r requirements.txt
-      - run: python scripts/probe.py || true
+      - name: Run probe
+        env:
+          TEAM: aerosparks
+          RECO_API: ${{ secrets.RECO_API_URL }}  # e.g. https://reco-api-...run.app
+          KAFKA_BOOTSTRAP: ${{ secrets.KAFKA_BOOTSTRAP }}
+          KAFKA_API_KEY: ${{ secrets.KAFKA_API_KEY }}
+          KAFKA_API_SECRET: ${{ secrets.KAFKA_API_SECRET }}
+          SCHEMA_REGISTRY_URL: ${{ secrets.SCHEMA_REGISTRY_URL }}
+          SCHEMA_REGISTRY_KEY: ${{ secrets.SCHEMA_REGISTRY_KEY }}
+          SCHEMA_REGISTRY_SECRET: ${{ secrets.SCHEMA_REGISTRY_SECRET }}
+        run: python scripts/probe.py

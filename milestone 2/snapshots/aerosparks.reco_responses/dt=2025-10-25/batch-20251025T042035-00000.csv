@@ -1,0 +1,4 @@
+event,user_id,status,latency_ms,k,movie_ids,timestamp,_kafka_topic,_kafka_partition,_kafka_offset,_kafka_ts
+reco_response,681,ok,95,5,"[2442, 2443, 2444, 2445, 2446]",2025-10-22T23:01:10Z,aerosparks.reco_responses,4,0,2025-10-22T23:01:11.021000+00:00
+reco_response,11,ok,50,5,"[100, 101, 102, 103, 104]",2025-10-25T03:21:14Z,aerosparks.reco_responses,3,0,2025-10-25T03:21:14.698000+00:00
+reco_response,791,ok,60,3,"[50, 172, 1]",2025-10-25T03:32:01Z,aerosparks.reco_responses,5,0,2025-10-25T03:32:01.124000+00:00
