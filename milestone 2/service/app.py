@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import PlainTextResponse
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 import os
 
@@ -16,7 +17,8 @@ def recommend(user_id: int, k: int = 20, model: str | None = None):
     try:
         ids = [50, 172, 1][:k]  # TODO: replace with real inference
         reqs.labels('200').inc()
-        return ','.join(map(str, ids))
+        # return raw text, not JSON string
+        return PlainTextResponse(",".join(map(str, ids)), media_type="text/plain")
     except Exception as e:
         reqs.labels('500').inc()
         raise HTTPException(500, str(e))
