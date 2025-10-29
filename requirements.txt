@@ -13,3 +13,8 @@ avro
 fastavro==1.9.4
 requests>=2.32.0
 pyarrow
+pandera
+
+ruff
+
+joblib
