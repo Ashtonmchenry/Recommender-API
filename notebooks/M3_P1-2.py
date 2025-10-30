@@ -7,8 +7,6 @@ Original file is located at
     https://colab.research.google.com/drive/12Zh2BqiuyfCPqqPlyltMdQpjqEvUyZo0
 """
 
-!pip -q install pandas numpy scipy scikit-learn tabulate implicit==0.7.2
-
 ##importanting the needed libraries
 import os, math, time, json, gzip, pickle
 from collections import defaultdict
@@ -97,6 +95,7 @@ movies  = load_movies(MOVIES_FILE)
 print("Ratings the shape:", ratings.shape)
 ratings.head()
 
+# chronological split
 cutoff_ts = np.quantile(ratings["timestamp"].values, 0.8)
 train_df  = ratings[ratings["timestamp"] <= cutoff_ts].copy()
 test_df   = ratings[ratings["timestamp"] >  cutoff_ts].copy()
@@ -142,6 +141,7 @@ np.save(os.path.join(REGISTRY, "user_factors.npy"), als.user_factors)
 np.save(os.path.join(REGISTRY, "item_factors.npy"), als.item_factors)
 print("The Model to Saved to", REGISTRY)
 
+# Evaluation metrics
 def precision_at_k(recs: List[int], truth: Set[int], k: int) -> float:
     if k == 0: return 0.0
     return sum(1 for x in recs[:k] if x in truth) / k

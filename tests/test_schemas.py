@@ -119,3 +119,27 @@ def test_normalization_maps_ts_to_timestamp(monkeypatch):
     }
     out = schemas.parse_event(topic, json.dumps(msg).encode())
     assert out["timestamp"] == "2025-10-22T02:00:00Z"
+
+from unittest.mock import patch, MagicMock
+from quality.avro_registry import validate_records
+
+@patch("quality.avro_registry.SchemaRegistryClient")
+def test_avro_validate_ok(mock_sr):
+    client = MagicMock()
+    mock_sr.return_value = client
+    client.get_latest_version.return_value.schema.schema_str = json.dumps({
+        "type":"record","name":"RecoResp","fields":[{"name":"user_id","type":"int"}]
+    })
+    ok, errs = validate_records("team.reco_responses-value", [{"user_id": 7}])
+    assert ok and errs == []
+
+@patch("quality.avro_registry.SchemaRegistryClient")
+def test_avro_validate_bad(mock_sr):
+    client = MagicMock()
+    mock_sr.return_value = client
+    client.get_latest_version.return_value.schema.schema_str = json.dumps({
+        "type":"record","name":"RecoResp","fields":[{"name":"user_id","type":"int"}]
+    })
+    ok, errs = validate_records("team.reco_responses-value", [{"user_id": "oops"}])
+    assert not ok and len(errs) == 1
+
