@@ -1,12 +1,16 @@
-"""
-clean, normalize data
-"""
+"""Data cleansing helpers shared across training and pipeline flows."""
+
+from __future__ import annotations
 
 import pandas as pd
 
+from ..features import basic_clean as _basic_clean
+
+
 def basic_clean(df: pd.DataFrame) -> pd.DataFrame:
-    # minimal transformation: drop NA, enforce types
-    df = df.dropna(subset=[c for c in df.columns if c in ("user_id","movie_id")])
-    if "rating" in df.columns:
-        df["rating"] = df["rating"].astype(float)
-    return df
+    """Expose the notebook's ``basic_clean`` via the pipeline module path."""
+
+    return _basic_clean(df)
+
+
+__all__ = ["basic_clean"]
