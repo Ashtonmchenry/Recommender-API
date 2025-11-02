@@ -1,5 +1,9 @@
-def test_schema_placeholder():
-    assert True
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import json
 import struct
@@ -63,6 +67,8 @@ def test_wire_format_watch_decodes_and_validates(monkeypatch):
         assert schema_id == 444
         return {"schema": json.dumps(WATCH_SCHEMA)}
     monkeypatch.setattr(schemas, "_sr_schema_by_id", fake_sr_by_id)
+    parsed_watch = avro_parse_schema(WATCH_SCHEMA)
+    monkeypatch.setattr(schemas, "_schema_for_topic", lambda _topic: ("AVRO", parsed_watch))
 
     # Act
     out = schemas.parse_event(topic, payload)
@@ -119,3 +125,44 @@ def test_normalization_maps_ts_to_timestamp(monkeypatch):
     }
     out = schemas.parse_event(topic, json.dumps(msg).encode())
     assert out["timestamp"] == "2025-10-22T02:00:00Z"
+
+from unittest.mock import MagicMock
+
+import quality.avro_registry as avro_registry
+
+
+def test_avro_validate_ok(monkeypatch):
+    mock_client = MagicMock()
+    mock_schema = MagicMock()
+    mock_schema.schema.schema_str = json.dumps(
+        {
+            "type": "record",
+            "name": "RecoResp",
+            "fields": [{"name": "user_id", "type": "int"}],
+        }
+    )
+    mock_client.get_latest_version.return_value = mock_schema
+    monkeypatch.setattr(avro_registry, "_client", lambda: mock_client)
+
+    ok, errs = avro_registry.validate_records("team.reco_responses-value", [{"user_id": 7}])
+    assert ok
+    assert errs == []
+
+
+def test_avro_validate_bad(monkeypatch):
+    mock_client = MagicMock()
+    mock_schema = MagicMock()
+    mock_schema.schema.schema_str = json.dumps(
+        {
+            "type": "record",
+            "name": "RecoResp",
+            "fields": [{"name": "user_id", "type": "int"}],
+        }
+    )
+    mock_client.get_latest_version.return_value = mock_schema
+    monkeypatch.setattr(avro_registry, "_client", lambda: mock_client)
+
+    ok, errs = avro_registry.validate_records("team.reco_responses-value", [{"user_id": "oops"}])
+    assert not ok
+    assert len(errs) == 1
+

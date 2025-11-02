@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-lint:
+    name: Lint, test, coverage, schema check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Tests with coverage
+        run: pytest -v --cov=recommender --cov=service --cov=quality --cov-fail-under=70
+
+      - name: Create coverage XML (artifact)
+        run: pytest --cov=recommender --cov=service --cov=quality --cov-report=xml:coverage.xml || true
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+      # Optional: probe your live API if you expose RECO_API_URL as a secret
+      - name: Probe deployed API
+        if: ${{ secrets.RECO_API_URL != '' }}
+        env:
+          RECO_API: ${{ secrets.RECO_API_URL }}
+        run: |
+          python - <<'PY'
+          import os, requests
+          api = os.environ["RECO_API"]
+          r = requests.get(f"{api}/healthz", timeout=10)
+          print("Health:", r.status_code, r.text[:200])
+          PY
+
+      # Optional: Avro Schema Registry validation gate (checks latest subject)
+      - name: Avro schema validation (Schema Registry)
+        if: ${{ secrets.SCHEMA_REGISTRY_URL != '' }}
+        env:
+          TEAM: aerosparks
+          SUBJECT: aerosparks.reco_responses-value
+          SCHEMA_REGISTRY_URL: ${{ secrets.SCHEMA_REGISTRY_URL }}
+          SCHEMA_REGISTRY_KEY: ${{ secrets.SCHEMA_REGISTRY_KEY }}
+          SCHEMA_REGISTRY_SECRET: ${{ secrets.SCHEMA_REGISTRY_SECRET }}
+        run: |
+          python - <<'PY'
+          import os, json
+          from confluent_kafka.schema_registry import SchemaRegistryClient
+          from fastavro.validation import validate
+          # build SR client
+          cfg = {"url": os.environ["SCHEMA_REGISTRY_URL"]}
+          key = os.environ.get("SCHEMA_REGISTRY_KEY")
+          sec = os.environ.get("SCHEMA_REGISTRY_SECRET")
+          if key and sec:
+            cfg["basic.auth.user.info"] = f"{key}:{sec}"
+          sr = SchemaRegistryClient(cfg)
+          subject = os.environ.get("SUBJECT", f"{os.environ.get('TEAM','team')}.reco_responses-value")
+          latest = sr.get_latest_version(subject)
+          schema = json.loads(latest.schema.schema_str)
+          # minimal sample that should match your schema fields; replace if you want
+          sample = [{"request_id":"r1","user_id":1,"movie_id":2,"timestamp":1700000000,"rating":4.0}]
+          # validate
+          for i, rec in enumerate(sample):
+            try:
+              validate(rec, schema)
+            except Exception as e:
+              raise SystemExit(f"Schema validation failed at idx={i}: {e}")
+          print(f"Schema validation passed for subject={subject} (version {latest.version})")
+          PY
+
+  build-image:
+    name: Build & push image (GHCR)
+    needs: test-lint
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/reco-api:latest

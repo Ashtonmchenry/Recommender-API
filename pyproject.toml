@@ -1,0 +1,9 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-select = ["E","F","I"]
+
+[tool.coverage.run]
+branch = true
+source = ["recommender","quality","stream","scripts"]
+omit = ["**/__init__.py"]
