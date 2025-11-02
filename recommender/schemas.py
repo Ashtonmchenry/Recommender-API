@@ -10,7 +10,11 @@ import json
 import struct
 from typing import Any, Dict, Optional, Tuple
 
-from confluent_kafka.schema_registry import SchemaRegistryClient
+try:  # pragma: no cover - exercised via tests with monkeypatch
+    from confluent_kafka.schema_registry import SchemaRegistryClient
+except Exception:  # library is optional for unit tests
+    SchemaRegistryClient = None  # type: ignore
+
 from fastavro import parse_schema as avro_parse_schema
 from fastavro import schemaless_reader
 from fastavro.validation import validate as avro_validate
@@ -22,16 +26,21 @@ SR_URL    = os.getenv("SCHEMA_REGISTRY_URL")
 SR_KEY    = os.getenv("SCHEMA_REGISTRY_KEY")
 SR_SECRET = os.getenv("SCHEMA_REGISTRY_SECRET")
 
-if not all([SR_URL, SR_KEY, SR_SECRET]):
-    raise RuntimeError(
-        "Missing Schema Registry credentials: "
-        "SCHEMA_REGISTRY_URL / SCHEMA_REGISTRY_KEY / SCHEMA_REGISTRY_SECRET"
-    )
 
-_sr = SchemaRegistryClient({
-    "url": SR_URL,
-    "basic.auth.user.info": f"{SR_KEY}:{SR_SECRET}",
-})
+def _build_schema_registry() -> Optional[SchemaRegistryClient]:
+    """Create a Schema Registry client if credentials and library exist."""
+    if SchemaRegistryClient is None:
+        return None
+    if not SR_URL:
+        return None
+
+    cfg = {"url": SR_URL}
+    if SR_KEY and SR_SECRET:
+        cfg["basic.auth.user.info"] = f"{SR_KEY}:{SR_SECRET}"
+    return SchemaRegistryClient(cfg)
+
+
+_sr = _build_schema_registry()
 
 # ---------- Topic → subject pointers ----------
 # If you add more topics, map them here (defaults to {topic}-value if missing)
@@ -62,6 +71,11 @@ def _parsed_schema_for_subject(subject: str) -> Tuple[str, Dict[str, Any]]:
     """
     if subject in _SCHEMA_CACHE_BY_SUBJECT:
         return _SCHEMA_CACHE_BY_SUBJECT[subject]
+
+    if _sr is None:
+        raise RuntimeError(
+            "Schema Registry client not configured. Set SCHEMA_REGISTRY_URL/KEY/SECRET"
+        )
 
     latest = _sr.get_latest_version(subject)  # -> RegisteredSchema
     # latest.schema is a Schema object: schema_str + schema_type (e.g., "AVRO")

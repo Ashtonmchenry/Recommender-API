@@ -10,7 +10,8 @@ import pandas as pd
 from scipy import sparse
 from implicit.als import AlternatingLeastSquares
 
-from . import transform, serialize  # keep your existing helpers
+from .pipeline import transform
+from . import serialize  # keep your existing helpers
 
 # ---- hyperparams (can be CLI-overridden) ----
 K = 20
@@ -122,6 +123,8 @@ def train_baseline(df: pd.DataFrame) -> Tuple[Any, Dict[str, float]]:
     return model, metrics
 
 def main():
+    global ALS_FACTORS, ALS_REG, ALS_ITERS, RATING_THRESHOLD
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", required=True, help="CSV with user_id,item_id,rating,timestamp")
     ap.add_argument("--output", default="models/reco.joblib", help="Path to save model")
@@ -131,7 +134,6 @@ def main():
     ap.add_argument("--thr", type=float, default=RATING_THRESHOLD)
     args = ap.parse_args()
 
-    global ALS_FACTORS, ALS_REG, ALS_ITERS, RATING_THRESHOLD
     ALS_FACTORS, ALS_REG, ALS_ITERS, RATING_THRESHOLD = args.factors, args.reg, args.iters, args.thr
 
     df = pd.read_csv(args.input)
