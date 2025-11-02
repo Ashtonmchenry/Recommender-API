@@ -1,23 +1,35 @@
-import json
-from fastapi.testclient import TestClient
-from service.app import app  # adjust if your app module differs
+from pathlib import Path
+import sys
 
-def test_healthz():
-    c = TestClient(app)
-    r = c.get("/healthz")
-    assert r.status_code == 200
-    assert r.text.lower().strip('"') in ("ok", "healthy")
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-def test_recommend_route_smoke(monkeypatch):
-    c = TestClient(app)
-    # minimal stub to avoid loading big models in unit test
-    def fake_recommend(user_id: int, k: int = 5): return [1,2,3,4,5]
-    monkeypatch.setenv("MODEL_PATH", "models/reco.joblib")
-    # if your app calls a function, monkeypatch it; adjust import path accordingly
+import service.app as app_module
 
-    from notebooks.M3_P1_2 import recommend_items_for_uid as recommend_for_user
-    # example: monkeypatch.setattr("service.recommend.recommend_for_user", fake_recommend)
-    r = c.get("/recommend", params={"user_id": 42, "k": 3})
-    assert r.status_code == 200
-    data = r.json()
-    assert "items" in data and len(data["items"]) == 3
+
+def test_health_endpoints(monkeypatch):
+    monkeypatch.setenv("MODEL_VERSION", "1.2.3")
+
+    assert app_module.health() == {"status": "ok", "version": "1.2.3"}
+    assert app_module.healthz().body.decode() == "ok"
+
+
+def test_recommend_json_route(monkeypatch):
+    def fake_recommender(user_id: int, k: int, model_path=None):
+        return [user_id + i for i in range(k)]
+
+    monkeypatch.setattr(app_module, "_recommend_for_user", fake_recommender)
+
+    payload = app_module.recommend(user_id=7, k=3)
+    assert payload == {"user_id": 7, "items": [7, 8, 9]}
+
+
+def test_recommend_plaintext_route(monkeypatch):
+    def fake_recommender(user_id: int, k: int, model_path=None):
+        return [1, 2, 3][:k]
+
+    monkeypatch.setattr(app_module, "_recommend_for_user", fake_recommender)
+
+    response = app_module.recommend_plain(user_id=99, k=2)
+    assert response.body.decode() == "1,2"

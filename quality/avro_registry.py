@@ -3,11 +3,17 @@ from __future__ import annotations
 import json
 from typing import Iterable, Dict, Any, List, Tuple
 
-from confluent_kafka.schema_registry import SchemaRegistryClient
+try:  # pragma: no cover - optional dependency in unit tests
+    from confluent_kafka.schema_registry import SchemaRegistryClient
+except Exception:  # pragma: no cover - fallback to sentinel for tests
+    SchemaRegistryClient = None  # type: ignore
+
 from recommender.config import settings
 from fastavro.validation import validate as avro_validate
 
 def _client() -> SchemaRegistryClient:
+    if SchemaRegistryClient is None:
+        raise RuntimeError("confluent-kafka is required for Schema Registry validation")
     cfg = {"url": settings.schema_registry_url}
     if settings.schema_registry_key and settings.schema_registry_secret:
         cfg["basic.auth.user.info"] = f"{settings.schema_registry_key}:{settings.schema_registry_secret}"

@@ -35,10 +35,10 @@ jobs:
         run: ruff check .
 
       - name: Tests with coverage
-        run: pytest -q --maxfail=1 --disable-warnings --cov --cov-report=term-missing
+        run: pytest -v --cov=recommender --cov=service --cov=quality --cov-fail-under=70
 
       - name: Create coverage XML (artifact)
-        run: pytest --cov --cov-report=xml:coverage.xml || true
+        run: pytest --cov=recommender --cov=service --cov=quality --cov-report=xml:coverage.xml || true
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
