@@ -21,4 +21,6 @@ COPY . .
 
 # Cloud Run expects the server to listen on $PORT (default 8080)
 ENV PORT=8080
-CMD ["uvicorn", "service.app:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["sh", "-c", "uvicorn service.app:app --host 0.0.0.0 --port ${PORT:-8080}"]
+
+

@@ -4,11 +4,11 @@ import os
 from typing import Iterable, List
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 
-app = FastAPI(title="Recommender API", version=os.getenv("MODEL_VERSION", "0.1"))
+app = FastAPI(title="Recommender API")
 reqs = Counter("recommend_requests_total", "requests", ["status"])
 lat = Histogram("recommend_latency_seconds", "latency")
 
@@ -38,35 +38,26 @@ def health() -> dict:
     return {"status": "ok", "version": os.getenv("MODEL_VERSION", "v0.1")}
 
 
+# Health
 @app.get("/healthz", response_class=PlainTextResponse)
-def healthz() -> PlainTextResponse:
-    return PlainTextResponse("ok")
+def healthz() -> str:
+    return "ok"
 
 
+# For JSON results, FastAPI serializes lists/dicts (response_model needed):
 @app.get("/recommend")
-@lat.time()
-def recommend(user_id: int, k: int = 20) -> dict:
-    try:
-        items = _recommend_for_user(user_id, k, os.getenv("MODEL_PATH"))
-        reqs.labels("200").inc()
-        return {"user_id": user_id, "items": list(items)}
-    except Exception as exc:  # pragma: no cover - defensive; surfaced via tests
-        reqs.labels("500").inc()
-        raise HTTPException(500, str(exc))
+def recommend(user_id: int, k: int = 10):
+    items = _recommend_for_user(user_id=user_id, k=k)
+    return {"user_id": user_id, "items": items}
+
+# For endpoints that return plain text ids:
+@app.get("/recommend/plain", response_class=PlainTextResponse)
+def recommend_plain(user_id: int, k: int = 10) -> str:
+    items = _recommend_for_user(user_id=user_id, k=k)
+    return _as_plain_text(items)
 
 
-@app.get("/recommend/plain")
-@lat.time()
-def recommend_plain(user_id: int, k: int = 20) -> PlainTextResponse:
-    try:
-        items = _recommend_for_user(user_id, k, os.getenv("MODEL_PATH"))
-        reqs.labels("200").inc()
-        return PlainTextResponse(_as_plain_text(items), media_type="text/plain")
-    except Exception as exc:  # pragma: no cover - defensive
-        reqs.labels("500").inc()
-        raise HTTPException(500, str(exc))
-
-
+# Metrics (Prometheus)
 @app.get("/metrics")
 def metrics():
-    return generate_latest(), 200, {"Content-Type": CONTENT_TYPE_LATEST}
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)

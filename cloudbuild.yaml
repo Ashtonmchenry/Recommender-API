@@ -1,3 +1,4 @@
+# tells Cloud Build to use docker/recommender.Dockerfile and push the image we pass as _IMAGE_URI
 steps:
   - name: gcr.io/cloud-builders/docker
     args: ["build", "-f", "docker/recommender.Dockerfile", "-t", "$_IMAGE_URI", "."]

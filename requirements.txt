@@ -1,5 +1,5 @@
 fastapi==0.115.0
-uvicorn[standard]==0.30.6
+uvicorn==0.30.6
 prometheus-client
 pydantic==2.9.2
 pandas==2.2.2
@@ -19,3 +19,4 @@ joblib
 implicit==0.7.2
 tabulate>=0.9
 scipy==1.11.4
+starlette>=0.37.2
