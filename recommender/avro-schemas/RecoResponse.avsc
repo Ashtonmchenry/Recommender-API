@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "RecoResponse",
+  "namespace": "reco.v1",
+  "fields": [
+    {"name": "user_id", "type": "long"},
+    {"name": "items", "type": {"type":"array","items":"long"}},
+    {"name": "model_version", "type": ["null","string"], "default": null},
+    {"name": "generated_at", "type": ["null","long"], "default": null}
+  ]
+}

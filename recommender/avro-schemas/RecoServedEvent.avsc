@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "RecoServedEvent",
+  "namespace": "reco.v1",
+  "fields": [
+    {"name": "user_id", "type": "long"},
+    {"name": "items", "type": {"type":"array","items":"long"}},
+    {"name": "request_k", "type": "int"},
+    {"name": "ts", "type": "long"}
+  ]
+}

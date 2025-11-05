@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "RecoRequest",
+  "namespace": "reco.v1",
+  "fields": [
+    {"name": "user_id", "type": "long"},
+    {"name": "k", "type": ["null","int"], "default": null},
+    {"name": "trace_id", "type": ["null","string"], "default": null}
+  ]
+}

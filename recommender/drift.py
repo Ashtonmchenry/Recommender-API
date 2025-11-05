@@ -114,7 +114,170 @@ def _run_self_checks() -> None:
     for values in shift_metrics.values():
         assert values["psi"] >= DEFAULT_THRESHOLDS["psi"] or values["kl"] >= DEFAULT_THRESHOLDS["kl"]
 
+# ---------------- CLI/Reporting glue ----------------
+import argparse
+from pathlib import Path
+
+def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    # unify common variants to snake_case
+    rename_map = {}
+    # users
+    if "user_id" not in out.columns:
+        if "userId" in out.columns: rename_map["userId"] = "user_id"
+        elif "userid" in out.columns: rename_map["userid"] = "user_id"
+    # items
+    if "movie_id" not in out.columns:
+        if "movieId" in out.columns: rename_map["movieId"] = "movie_id"
+        elif "item_id" in out.columns: rename_map["item_id"] = "movie_id"
+        elif "movieid" in out.columns: rename_map["movieid"] = "movie_id"
+    # rating
+    if "rating" not in out.columns:
+        if "Rating" in out.columns: rename_map["Rating"] = "rating"
+    # timestamps
+    if "timestamp" not in out.columns:
+        if "ts" in out.columns: rename_map["ts"] = "timestamp"
+        elif "Timestamp" in out.columns: rename_map["Timestamp"] = "timestamp"
+
+    if rename_map:
+        out = out.rename(columns=rename_map)
+
+    return out
+
+
+def _freq(series: pd.Series, topn: int = 20) -> pd.Series:
+    s = series.value_counts(normalize=True).head(topn)
+    s.index = s.index.astype(str)
+    return s
+
+def _drift_table(
+    ref_df: pd.DataFrame,
+    cur_df: pd.DataFrame,
+    columns=("user_id", "movie_id", "rating"),
+    thresholds: Dict[str, float] | None = None,
+) -> pd.DataFrame:
+    metrics, flagged = detect_drift(ref_df, cur_df, columns=columns, thresholds=thresholds)
+    rows = []
+    for col in columns:
+        if col in metrics:
+            rows.append({
+                "column": col,
+                "psi": round(metrics[col]["psi"], 6),
+                "kl": round(metrics[col]["kl"], 6),
+                "psi_thresh": (thresholds or DEFAULT_THRESHOLDS)["psi"],
+                "kl_thresh": (thresholds or DEFAULT_THRESHOLDS)["kl"],
+                "flagged": (metrics[col]["psi"] > (thresholds or DEFAULT_THRESHOLDS)["psi"]) or
+                           (metrics[col]["kl"]  > (thresholds or DEFAULT_THRESHOLDS)["kl"]),
+            })
+        else:
+            rows.append({"column": col, "psi": None, "kl": None,
+                         "psi_thresh": (thresholds or DEFAULT_THRESHOLDS)["psi"],
+                         "kl_thresh": (thresholds or DEFAULT_THRESHOLDS)["kl"],
+                         "flagged": None})
+    tbl = pd.DataFrame(rows)
+    tbl.attrs["overall_flagged"] = any(bool(r["flagged"]) for r in rows if r["flagged"] is not None)
+    return tbl
+
+def _plot_quick(ref_df: pd.DataFrame, cur_df: pd.DataFrame, out_dir: Path, topn: int = 20) -> None:
+    import matplotlib.pyplot as plt
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- Items (movie_id)
+    if "movie_id" in ref_df.columns and "movie_id" in cur_df.columns:
+        b_items = _freq(ref_df["movie_id"], topn)
+        c_items = _freq(cur_df["movie_id"], topn)
+        ids = sorted(set(b_items.index) | set(c_items.index), key=lambda x: int(x))
+        bx = b_items.reindex(ids, fill_value=0.0).values
+        cx = c_items.reindex(ids, fill_value=0.0).values
+        x = range(len(ids))
+
+        plt.figure(figsize=(11, 5))
+        plt.bar([i - 0.2 for i in x], bx, width=0.4, label="baseline")
+        plt.bar([i + 0.2 for i in x], cx, width=0.4, label="current")
+        plt.title(f"Top-{topn} item popularity (normalized)")
+        plt.xlabel("movie_id")
+        plt.ylabel("proportion")
+        plt.xticks(list(x), ids, rotation=45, ha="right")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(out_dir / "items_topN.png", dpi=150)
+        plt.close()
+
+    # --- Users
+    if "user_id" in ref_df.columns and "user_id" in cur_df.columns:
+        b_users = _freq(ref_df["user_id"], topn)
+        c_users = _freq(cur_df["user_id"], topn)
+        uids = sorted(set(b_users.index) | set(c_users.index), key=lambda x: int(x))
+        bu = b_users.reindex(uids, fill_value=0.0).values
+        cu = c_users.reindex(uids, fill_value=0.0).values
+        x = range(len(uids))
+
+        plt.figure(figsize=(11, 5))
+        plt.bar([i - 0.2 for i in x], bu, width=0.4, label="baseline")
+        plt.bar([i + 0.2 for i in x], cu, width=0.4, label="current")
+        plt.title(f"Top-{topn} user activity (normalized)")
+        plt.xlabel("user_id")
+        plt.ylabel("proportion")
+        plt.xticks(list(x), uids, rotation=45, ha="right")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(out_dir / "users_topN.png", dpi=150)
+        plt.close()
+
+    # --- Ratings (optional)
+    if "rating" in ref_df.columns and "rating" in cur_df.columns:
+        plt.figure(figsize=(8, 5))
+        plt.hist(ref_df["rating"].dropna().astype(float), bins=20, alpha=0.6, label="baseline", density=True)
+        plt.hist(cur_df["rating"].dropna().astype(float), bins=20, alpha=0.6, label="current", density=True)
+        plt.title("Rating distribution (density)")
+        plt.xlabel("rating")
+        plt.ylabel("density")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(out_dir / "ratings_hist.png", dpi=150)
+        plt.close()
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Data drift report (PSI/KL + quick plots)")
+    ap.add_argument("--baseline", required=True, help="CSV (e.g., data/ratings.csv)")
+    ap.add_argument("--current",  required=True, help="CSV (e.g., out_eval/features.csv)")
+    ap.add_argument("--columns",  default="user_id,item_id,rating",
+                    help="comma-separated list; will map item_id→movie_id internally")
+    ap.add_argument("--out",      default="out_eval/drift_summary.csv", help="where to write the table CSV")
+    ap.add_argument("--plots",    default="out_eval/drift_plots",       help="directory for PNGs")
+    ap.add_argument("--psi-threshold", type=float, default=DEFAULT_THRESHOLDS["psi"])
+    ap.add_argument("--kl-threshold",  type=float, default=DEFAULT_THRESHOLDS["kl"])
+    ap.add_argument("--topn",     type=int, default=20, help="top-N for popularity plots")
+    args = ap.parse_args()
+
+    ref_df = pd.read_csv(args.baseline)
+    cur_df = pd.read_csv(args.current)
+
+    # normalize common column names to this module's expected keys
+    ref_df = _normalize_cols(ref_df)
+    cur_df = _normalize_cols(cur_df)
+
+    # map user’s "item_id" to our internal "movie_id" key for metrics
+    cols = [c.strip() for c in args.columns.split(",") if c.strip()]
+    cols = ["movie_id" if c == "item_id" else c for c in cols]
+
+    thresholds = {"psi": args.psi_threshold, "kl": args.kl_threshold}
+    table = _drift_table(ref_df, cur_df, columns=cols, thresholds=thresholds)
+
+    # print table nicely
+    try:
+        from tabulate import tabulate
+        print(tabulate(table, headers="keys", tablefmt="github", floatfmt=".6f"))
+    except Exception:
+        print(table.to_string(index=False))
+
+    # write CSV
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    table.to_csv(args.out, index=False)
+
+    # plots
+    _plot_quick(ref_df, cur_df, Path(args.plots), topn=args.topn)
 
 if __name__ == "__main__":
-    _run_self_checks()
-    print("Drift self-checks passed.")
+    main()
