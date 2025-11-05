@@ -19,13 +19,13 @@ def basic_clean(df: pd.DataFrame) -> pd.DataFrame:
 
     # Coerce types before dropping
     if "user_id" in out.columns:
-        out["user_id"] = pd.to_numeric(out["user_id"], errors="coerce")
+        out["user_id"] = pd.to_numeric(out["user_id"], errors="coerce").fillna(0.0).clip(0, 5)
     if "item_id" in out.columns:
-        out["item_id"] = pd.to_numeric(out["item_id"], errors="coerce")
+        out["item_id"] = pd.to_numeric(out["item_id"], errors="coerce").fillna(0.0).clip(0, 5)
     if "rating" in out.columns:
-        out["rating"] = pd.to_numeric(out["rating"], errors="coerce").clip(0, 5)
-    if "timestamp" in out.columns:
-        out["timestamp"] = pd.to_numeric(out["timestamp"], errors="coerce")
+        out["rating"] = pd.to_numeric(out["rating"], errors="coerce").fillna(0.0).clip(0, 5)
+    if "ts" in out.columns:
+        out["ts"] = pd.to_numeric(out["ts"], errors="coerce").fillna(0.0).clip(0, 5)
 
     # Drop NAs / duplicates only for columns that actually exist
     subset = [c for c in ["user_id", "item_id", "timestamp"] if c in out.columns]
