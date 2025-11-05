@@ -22,8 +22,15 @@ ALS_FACTORS = 64
 ALS_REG = 0.01
 ALS_ITERS = 20
 
-# -------- utils (chronological split) --------
+# -------- utils (chronological split + indexing) --------
+def _normalize_time(df: pd.DataFrame) -> pd.DataFrame:
+    """Accept 'ts' or 'timestamp'; always return 'timestamp'."""
+    if "timestamp" not in df.columns and "ts" in df.columns:
+        df = df.rename(columns={"ts": "timestamp"})
+    return df
+
 def reindex(df: pd.DataFrame, min_interactions: int = MIN_INTERACTIONS) -> pd.DataFrame:
+    """Keep users with enough interactions and add 0..N-1 indices."""
     counts = df.groupby("user_id").size()
     keep = set(counts[counts >= min_interactions].index)
     df = df[df["user_id"].isin(keep)].copy()
@@ -34,17 +41,30 @@ def reindex(df: pd.DataFrame, min_interactions: int = MIN_INTERACTIONS) -> pd.Da
     return df
 
 def last_item_holdout(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    df = df.sort_values(["uidx", "timestamp", df.index.name or df.reset_index().columns[0]])
-    last_idx = df.groupby("uidx")["timestamp"].idxmax()
-    test = df.loc[last_idx, ["uidx", "iidx"]].rename(columns={"iidx": "true_item"}).reset_index(drop=True)
-    train = df.drop(index=last_idx).reset_index(drop=True)
+    """
+    Chronological last-item holdout per user.
+    Requires columns: uidx, iidx (or item_id), timestamp.
+    """
+    df = _normalize_time(df)
+    item_col = "iidx" if "iidx" in df.columns else "item_id"
+
+    # Make sorting independent of any existing index
+    tmp = df.reset_index(drop=True).sort_values(["uidx", "timestamp"])
+    last_idx = tmp.groupby("uidx")["timestamp"].idxmax()
+
+    test = (
+        tmp.loc[last_idx, ["uidx", item_col]]
+        .rename(columns={item_col: "true_item"})
+        .reset_index(drop=True)
+    )
+    train = tmp.drop(index=last_idx).reset_index(drop=True)
     return train, test
 
 def build_UI(train: pd.DataFrame, n_users: int, n_items: int, rating_threshold: float) -> sparse.csr_matrix:
     rows = train["uidx"].to_numpy()
     cols = train["iidx"].to_numpy()
     # implicit positives: 1 if rating > threshold else 0
-    vals = (train["rating"].to_numpy() > rating_threshold).astype(float)
+    vals = (train["rating"].to_numpy() > rating_threshold).astype(float) if "rating" in train.columns else np.ones_like(rows, dtype=float)
     return sparse.coo_matrix((vals, (rows, cols)), shape=(n_users, n_items)).tocsr()
 
 def seen_by_user(UI: sparse.csr_matrix) -> List[set]:
@@ -63,23 +83,30 @@ def ndcg_at_k(recs: Iterable[int], t: int) -> float:
 @dataclass
 class ALSModel:
     als: AlternatingLeastSquares
-    user_map: Dict[int, int]    # external user_id -> internal uidx
-    item_map: Dict[int, int]    # external item_id -> internal iidx
-    user_factors: np.ndarray    # (n_users, factors)
-    item_factors: np.ndarray    # (n_items, factors)
+    user_map: dict[int, int]
+    item_map: dict[int, int]
+    user_factors: np.ndarray
+    item_factors: np.ndarray
 
-    def recommend(self, uidx: int, UI: sparse.csr_matrix, k: int, exclude_seen: bool = True) -> List[int]:
-        # use implicit.recommends for speed; filter seen items
-        recs, _ = self.als.recommend(uidx, UI, N=k, filter_already_liked_items=exclude_seen)
+    def recommend(self, uidx: int, UI: sparse.csr_matrix, k: int, exclude_seen: bool = True) -> list[int]:
+        # pass the 1×N row, not the full matrix
+        user_row = UI[uidx]
+        recs, _ = self.als.recommend(
+            userid=uidx,
+            user_items=user_row,
+            N=k,
+            filter_already_liked_items=exclude_seen,
+        )
         return recs.tolist()
 
 # -------- public API --------
 def train_baseline(df: pd.DataFrame) -> Tuple[Any, Dict[str, float]]:
     """
     Train ALS on implicit positives with chronological evaluation.
-    df columns required: user_id, item_id, rating, timestamp
+    df columns required: user_id, item_id, rating, timestamp (or ts)
     Returns: (ALSModel, metrics)
     """
+    df = _normalize_time(df)
     df = reindex(df, MIN_INTERACTIONS)
     train_df, test_df = last_item_holdout(df)
 
@@ -88,16 +115,16 @@ def train_baseline(df: pd.DataFrame) -> Tuple[Any, Dict[str, float]]:
     UI = build_UI(train_df, n_users, n_items, rating_threshold=RATING_THRESHOLD)
 
     # ALS expects item-user matrix for fitting
-    IU = UI.T.tocsr()
+    # IU = UI.T.tocsr()
     als = AlternatingLeastSquares(factors=ALS_FACTORS, regularization=ALS_REG, iterations=ALS_ITERS)
-    als.fit(IU)
+    als.fit(UI)
 
     model = ALSModel(
         als=als,
         user_map=dict(zip(df["user_id"], df["uidx"])),
         item_map=dict(zip(df["item_id"], df["iidx"])),
-        user_factors=als.user_factors.copy(),   # note: in implicit, user_factors correspond to items' transposed fit
-        item_factors=als.item_factors.copy()
+        user_factors=als.user_factors.copy(),
+        item_factors=als.item_factors.copy(),
     )
 
     # Evaluate HR@20 / NDCG@20 on last-item holdout
@@ -126,7 +153,7 @@ def main():
     global ALS_FACTORS, ALS_REG, ALS_ITERS, RATING_THRESHOLD
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input", required=True, help="CSV with user_id,item_id,rating,timestamp")
+    ap.add_argument("--input", required=True, help="CSV with user_id,item_id,rating,timestamp (or ts)")
     ap.add_argument("--output", default="models/reco.joblib", help="Path to save model")
     ap.add_argument("--factors", type=int, default=ALS_FACTORS)
     ap.add_argument("--reg", type=float, default=ALS_REG)
@@ -137,7 +164,10 @@ def main():
     ALS_FACTORS, ALS_REG, ALS_ITERS, RATING_THRESHOLD = args.factors, args.reg, args.iters, args.thr
 
     df = pd.read_csv(args.input)
-    df = transform.basic_clean(df)  # keep your existing transform
+    # keep your transform, but make it tolerant to ts/timestamp
+    df = _normalize_time(df)
+    df = transform.basic_clean(df)
+
     model, metrics = train_baseline(df)
     serialize.save_model(model, args.output)
     print("Training complete.\nMetrics:", metrics, "\nSaved:", args.output)

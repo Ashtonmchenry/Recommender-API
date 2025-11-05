@@ -9,17 +9,37 @@ import pandas as pd
 def basic_clean(df: pd.DataFrame) -> pd.DataFrame:
     """
     Light cleansing: types, NA/dup removal, rating bounds.
-    Expects columns user_id, item_id, rating, timestamp (rating may be float).
+    Accepts columns: user_id, item_id, rating, timestamp (or 'ts').
     """
     out = df.copy()
-    out = out.dropna(subset=["user_id", "item_id", "timestamp"])
-    out = out.drop_duplicates(subset=["user_id", "item_id", "timestamp"], keep="last")
-    out["user_id"] = out["user_id"].astype(int)
-    out["item_id"] = out["item_id"].astype(int)
-    if "rating" in out:
-        out["rating"] = pd.to_numeric(out["rating"], errors="coerce").fillna(0.0).clip(0, 5)
-    out["timestamp"] = pd.to_numeric(out["timestamp"], errors="coerce").astype(int)
+
+    # Normalize timestamp column name
+    if "ts" in out.columns and "timestamp" not in out.columns:
+        out = out.rename(columns={"ts": "timestamp"})
+
+    # Coerce types before dropping
+    if "user_id" in out.columns:
+        out["user_id"] = pd.to_numeric(out["user_id"], errors="coerce")
+    if "item_id" in out.columns:
+        out["item_id"] = pd.to_numeric(out["item_id"], errors="coerce")
+    if "rating" in out.columns:
+        out["rating"] = pd.to_numeric(out["rating"], errors="coerce").clip(0, 5)
+    if "timestamp" in out.columns:
+        out["timestamp"] = pd.to_numeric(out["timestamp"], errors="coerce")
+
+    # Drop NAs / duplicates only for columns that actually exist
+    subset = [c for c in ["user_id", "item_id", "timestamp"] if c in out.columns]
+    if subset:
+        out = out.dropna(subset=subset)
+        out = out.drop_duplicates(subset=subset, keep="last")
+
+    # Final integer casts (safe after NA drop)
+    for c in ["user_id", "item_id", "timestamp"]:
+        if c in out.columns:
+            out[c] = out[c].astype(int)
+
     return out
+
 
 def user_item_activity(df: pd.DataFrame) -> Tuple[pd.Series, pd.Series]:
     """Return (#events per user, #events per item)."""
