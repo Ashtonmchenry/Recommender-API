@@ -1,17 +1,25 @@
-# Minimal trainer stub: replace with ALS / CF / baseline training
+"""Training entry-point for the ALS-based recommender with registry publishing."""
 
-# recommender/train.py
 from __future__ import annotations
-import argparse, math
+
+import argparse
+import hashlib
+import json
+import math
+import os
+import shutil
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
+
 import numpy as np
 import pandas as pd
-from scipy import sparse
 from implicit.als import AlternatingLeastSquares
+from scipy import sparse
 
-from .pipeline import transform
 from . import serialize  # keep your existing helpers
+from .pipeline import transform
 
 # ---- hyperparams (can be CLI-overridden) ----
 K = 20
@@ -23,14 +31,18 @@ ALS_REG = 0.01
 ALS_ITERS = 20
 
 # -------- utils (chronological split + indexing) --------
+
 def _normalize_time(df: pd.DataFrame) -> pd.DataFrame:
     """Accept 'ts' or 'timestamp'; always return 'timestamp'."""
+
     if "timestamp" not in df.columns and "ts" in df.columns:
         df = df.rename(columns={"ts": "timestamp"})
     return df
 
+
 def reindex(df: pd.DataFrame, min_interactions: int = MIN_INTERACTIONS) -> pd.DataFrame:
     """Keep users with enough interactions and add 0..N-1 indices."""
+
     counts = df.groupby("user_id").size()
     keep = set(counts[counts >= min_interactions].index)
     df = df[df["user_id"].isin(keep)].copy()
@@ -40,11 +52,10 @@ def reindex(df: pd.DataFrame, min_interactions: int = MIN_INTERACTIONS) -> pd.Da
     df["iidx"] = df["item_id"].map(iid_map)
     return df
 
+
 def last_item_holdout(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Chronological last-item holdout per user.
-    Requires columns: uidx, iidx (or item_id), timestamp.
-    """
+    """Chronological last-item holdout per user."""
+
     df = _normalize_time(df)
     item_col = "iidx" if "iidx" in df.columns else "item_id"
 
@@ -60,18 +71,26 @@ def last_item_holdout(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
     train = tmp.drop(index=last_idx).reset_index(drop=True)
     return train, test
 
+
 def build_UI(train: pd.DataFrame, n_users: int, n_items: int, rating_threshold: float) -> sparse.csr_matrix:
     rows = train["uidx"].to_numpy()
     cols = train["iidx"].to_numpy()
     # implicit positives: 1 if rating > threshold else 0
-    vals = (train["rating"].to_numpy() > rating_threshold).astype(float) if "rating" in train.columns else np.ones_like(rows, dtype=float)
+    vals = (
+        (train["rating"].to_numpy() > rating_threshold).astype(float)
+        if "rating" in train.columns
+        else np.ones_like(rows, dtype=float)
+    )
     return sparse.coo_matrix((vals, (rows, cols)), shape=(n_users, n_items)).tocsr()
+
 
 def seen_by_user(UI: sparse.csr_matrix) -> List[set]:
     return [set(UI[u].indices) for u in range(UI.shape[0])]
 
+
 def hr_at_k(recs: Iterable[int], t: int) -> float:
     return 1.0 if t in recs else 0.0
+
 
 def ndcg_at_k(recs: Iterable[int], t: int) -> float:
     for r, i in enumerate(recs, start=1):
@@ -79,7 +98,9 @@ def ndcg_at_k(recs: Iterable[int], t: int) -> float:
             return 1.0 / math.log2(r + 1)
     return 0.0
 
+
 # -------- ALS model wrapper --------
+
 @dataclass
 class ALSModel:
     als: AlternatingLeastSquares
@@ -99,13 +120,76 @@ class ALSModel:
         )
         return recs.tolist()
 
+
+# -------- registry + metadata helpers --------
+
+def _sha256(path: Path) -> str:
+    """Compute a content hash so downstream services can verify integrity."""
+
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 16), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _dump_metadata(path: Path, payload: Dict[str, Any]) -> None:
+    """Write metadata as YAML when available, JSON otherwise."""
+
+    try:
+        import yaml  # type: ignore
+    except ModuleNotFoundError:
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return
+
+    with path.open("w", encoding="utf-8") as fh:  # pragma: no cover - exercised when PyYAML present
+        yaml.safe_dump(payload, fh, sort_keys=False)
+
+
+def _publish_to_registry(
+    model_path: Path,
+    registry: str,
+    metadata: Dict[str, Any],
+    explicit_version: str | None,
+) -> Tuple[str, Dict[str, Any], Path]:
+    """Copy the trained model into a versioned registry folder and persist metadata."""
+
+    registry_root = Path(registry)
+    registry_root.mkdir(parents=True, exist_ok=True)
+
+    version = explicit_version or f"v{datetime.now(timezone.utc):%Y%m%d%H%M%S}"
+    version_dir = registry_root / version
+    version_dir.mkdir(parents=True, exist_ok=True)
+
+    artifact_path = version_dir / model_path.name
+    shutil.copy2(model_path, artifact_path)
+
+    enriched = dict(metadata)
+    enriched.update(
+        {
+            "version": version,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "artifact": {
+                "filename": artifact_path.name,
+                "sha256": _sha256(artifact_path),
+            },
+        }
+    )
+
+    _dump_metadata(version_dir / "meta.yaml", enriched)
+
+    return version, enriched, version_dir
+
+
 # -------- public API --------
+
 def train_baseline(df: pd.DataFrame) -> Tuple[Any, Dict[str, float]]:
     """
     Train ALS on implicit positives with chronological evaluation.
     df columns required: user_id, item_id, rating, timestamp (or ts)
     Returns: (ALSModel, metrics)
     """
+
     df = _normalize_time(df)
     df = reindex(df, MIN_INTERACTIONS)
     train_df, test_df = last_item_holdout(df)
@@ -115,7 +199,6 @@ def train_baseline(df: pd.DataFrame) -> Tuple[Any, Dict[str, float]]:
     UI = build_UI(train_df, n_users, n_items, rating_threshold=RATING_THRESHOLD)
 
     # ALS expects item-user matrix for fitting
-    # IU = UI.T.tocsr()
     als = AlternatingLeastSquares(factors=ALS_FACTORS, regularization=ALS_REG, iterations=ALS_ITERS)
     als.fit(UI)
 
@@ -149,6 +232,7 @@ def train_baseline(df: pd.DataFrame) -> Tuple[Any, Dict[str, float]]:
     }
     return model, metrics
 
+
 def main():
     global ALS_FACTORS, ALS_REG, ALS_ITERS, RATING_THRESHOLD
 
@@ -159,19 +243,67 @@ def main():
     ap.add_argument("--reg", type=float, default=ALS_REG)
     ap.add_argument("--iters", type=int, default=ALS_ITERS)
     ap.add_argument("--thr", type=float, default=RATING_THRESHOLD)
+    ap.add_argument("--registry", help="Directory (or mounted bucket) for versioned registry publishing")
+    ap.add_argument("--registry-version", help="Explicit version tag to publish (e.g., v20241010)")
+    ap.add_argument("--metadata-json", help="Optional path to dump metadata as JSON for automation")
     args = ap.parse_args()
 
     ALS_FACTORS, ALS_REG, ALS_ITERS, RATING_THRESHOLD = args.factors, args.reg, args.iters, args.thr
 
     df = pd.read_csv(args.input)
-    # keep your transform, but make it tolerant to ts/timestamp
     df = _normalize_time(df)
     df = transform.basic_clean(df)
 
     model, metrics = train_baseline(df)
-    serialize.save_model(model, args.output)
-    print("Training complete.\nMetrics:", metrics, "\nSaved:", args.output)
+
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    serialize.save_model(model, str(output_path))
+
+    base_metadata: Dict[str, Any] = {
+        "metrics": metrics,
+        "hyperparams": {
+            "factors": ALS_FACTORS,
+            "reg": ALS_REG,
+            "iters": ALS_ITERS,
+            "thr": RATING_THRESHOLD,
+        },
+        "training": {
+            "input_path": os.path.abspath(args.input),
+            "rows": int(len(df)),
+            "n_users": int(len(model.user_map)),
+            "n_items": int(len(model.item_map)),
+        },
+        "artifact": {
+            "filename": output_path.name,
+            "sha256": _sha256(output_path),
+        },
+    }
+
+    published_version = None
+    registry_dir = None
+    if args.registry:
+        published_version, metadata, registry_dir = _publish_to_registry(
+            model_path=output_path,
+            registry=args.registry,
+            metadata=base_metadata,
+            explicit_version=args.registry_version,
+        )
+        base_metadata = metadata
+
+    if args.metadata_json:
+        metadata_path = Path(args.metadata_json)
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        metadata_path.write_text(json.dumps(base_metadata, indent=2), encoding="utf-8")
+
+    summary = {
+        "saved": str(output_path),
+        "registry_version": published_version,
+        "registry_dir": str(registry_dir) if registry_dir else None,
+        "metrics": metrics,
+    }
+    print(json.dumps(summary, indent=2))
+
 
 if __name__ == "__main__":
     main()
-

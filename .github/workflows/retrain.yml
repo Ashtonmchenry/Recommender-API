@@ -1,0 +1,70 @@
+name: Scheduled Retraining
+
+on:
+  schedule:
+    - cron: "0 7 * * *"  # daily at 07:00 UTC
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+  TRAIN_INPUT: data/ratings.csv
+  REGISTRY_DIR: out_registry
+  MODEL_REGISTRY_GCS: ${{ vars.MODEL_REGISTRY_GCS || '' }}
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || '' }}
+  GCP_REGION: ${{ vars.GCP_REGION || '' }}
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Derive model version tag
+        id: version
+        run: echo "value=v$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+
+      - name: Train model
+        run: |
+          python -m recommender.train \
+            --input "${{ env.TRAIN_INPUT }}" \
+            --output "out_models/${{ steps.version.outputs.value }}.joblib" \
+            --registry "${{ env.REGISTRY_DIR }}" \
+            --registry-version "${{ steps.version.outputs.value }}" \
+            --metadata-json "${{ env.REGISTRY_DIR }}/${{ steps.version.outputs.value }}/metadata.json"
+
+      - name: Upload model artifact snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-${{ steps.version.outputs.value }}
+          path: ${{ env.REGISTRY_DIR }}/${{ steps.version.outputs.value }}
+
+      - name: Authenticate to Google Cloud (optional)
+        if: env.MODEL_REGISTRY_GCS != ''
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_TRAIN_SA }}
+
+      - name: Set up gcloud (optional)
+        if: env.MODEL_REGISTRY_GCS != ''
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Upload version to GCS (optional)
+        if: env.MODEL_REGISTRY_GCS != ''
+        run: |
+          gcloud storage cp --recursive "${{ env.REGISTRY_DIR }}/${{ steps.version.outputs.value }}" "${{ env.MODEL_REGISTRY_GCS }}"
