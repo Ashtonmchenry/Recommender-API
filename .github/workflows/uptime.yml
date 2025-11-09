@@ -1,0 +1,15 @@
+name: Uptime checks
+on: { schedule: [ { cron: "*/15 * * * *" } ], workflow_dispatch: {} }
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ -z "${{ secrets.API_URL }}" ]; then exit 0; fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.API_URL }}/healthz")
+          echo "healthz: $code"; test "$code" -eq 200
+      - if: ${{ always() }}
+        run: |
+          if [ -z "${{ secrets.API_URL }}" ]; then exit 0; fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.API_URL }}/recommend?user_id=1&k=5")
+          echo "recommend: $code"; [ "$code" -eq 200 ]

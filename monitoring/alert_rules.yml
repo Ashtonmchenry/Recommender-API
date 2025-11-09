@@ -1,0 +1,18 @@
+groups:
+- name: reco-api.rules
+  rules:
+  - alert: HighErrorRate
+    expr: sum(rate(http_errors_total[5m])) / sum(rate(http_requests_total[5m])) > 0.05
+    for: 10m
+    labels: { severity: warning }
+    annotations: { summary: "High 5xx error rate (>5%)" }
+  - alert: HighLatencyP95
+    expr: histogram_quantile(0.95, sum(rate(http_request_latency_seconds_bucket[5m])) by (le)) > 0.5
+    for: 10m
+    labels: { severity: warning }
+    annotations: { summary: "p95 latency > 500ms" }
+  - alert: ServiceDown
+    expr: (time() - service_uptime_seconds) > 300
+    for: 5m
+    labels: { severity: critical }
+    annotations: { summary: "Service uptime stopped increasing" }
