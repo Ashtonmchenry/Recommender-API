@@ -89,7 +89,7 @@ jobs:
         run: |
           IMAGE_URI=${GAR_HOST}/${GCP_PROJECT_ID}/${GAR_REPO}/${IMAGE_NAME}:${GITHUB_SHA}
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
-          docker build -t "$IMAGE_URI" .
+          docker build -f docker/service.Dockerfile -t "$IMAGE_URI" .
 
       - name: Push image
         run: docker push "$IMAGE_URI"
