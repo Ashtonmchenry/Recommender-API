@@ -5,5 +5,5 @@ extend-select = ["E","F","I"]
 
 [tool.coverage.run]
 branch = true
-source = ["recommender","quality","stream","scripts"]
+source = ["recommender","service","stream","scripts","quality"]
 omit = ["**/__init__.py"]

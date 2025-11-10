@@ -1,0 +1,6 @@
+version: v0.2
+created_at: 2024-10-12T08:30:00+00:00
+metrics:
+  hr@20: 0.47
+  ndcg@20: 0.31
+notes: "Auto retrained via scheduled pipeline"
