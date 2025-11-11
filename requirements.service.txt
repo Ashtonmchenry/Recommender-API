@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+pydantic
+prometheus-client
+numpy
+pandas
+python-dotenv

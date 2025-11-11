@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+prometheus-client
+numpy
+scipy
+pandas
+joblib
+pydantic
+# if you actually use it:
+implicit
+# if you use avro/kafka anywhere in service:
+confluent-kafka[avro]
+fastavro

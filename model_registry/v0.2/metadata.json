@@ -1,0 +1,6 @@
+{
+  "version": "v0.2",
+  "artifact": "model.joblib",
+  "created_at": "2025-11-10T22:00:00Z",
+  "notes": "baseline TF-IDF model"
+}

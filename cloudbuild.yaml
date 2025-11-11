@@ -1,6 +1,30 @@
-# tells Cloud Build to use docker/recommender.Dockerfile and push the image we pass as _IMAGE_URI
+# cloudbuild.yaml
+substitutions:
+  _SERVICE: "reco-api"                          # your Cloud Run service name
+  _REGION:  "us-central1"
+  _REPO:    "us-central1-docker.pkg.dev/recommender-api-476122/reco"
+  _IMAGE:   "${_REPO}/reco-api:${SHORT_SHA}"
+
 steps:
-  - name: gcr.io/cloud-builders/docker
-    args: ["build", "-f", "docker/recommender.Dockerfile", "-t", "$_IMAGE_URI", "."]
-images:
-  - "$_IMAGE_URI"
+# Build with your Dockerfile that lives under docker/
+- name: gcr.io/cloud-builders/docker
+  args: ["build", "-f", "docker/service.Dockerfile", "-t", "${_IMAGE}", "."]
+
+# Push to Artifact Registry
+- name: gcr.io/cloud-builders/docker
+  args: ["push", "${_IMAGE}"]
+
+# Deploy to Cloud Run
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  entrypoint: gcloud
+  args:
+    [
+      "run","deploy","${_SERVICE}",
+      "--image","${_IMAGE}",
+      "--region","${_REGION}",
+      "--platform","managed",
+      "--allow-unauthenticated",
+      "--set-env-vars","MODEL_REGISTRY=${_MODEL_REGISTRY}"
+    ]
+
+images: ["${_IMAGE}"]

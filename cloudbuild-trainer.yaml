@@ -1,0 +1,32 @@
+substitutions:
+  _REGION: us-central1
+  _REPO: reco
+  _IMAGE: us-central1-docker.pkg.dev/$PROJECT_ID/${_REPO}/trainer:$SHORT_SHA
+  _REGISTRY_BUCKET: reco-model-registry
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build','-f','docker/trainer.Dockerfile','-t','${_IMAGE}','.']
+
+  - name: gcr.io/cloud-builders/docker
+    args: ['push','${_IMAGE}']
+
+  # Run the trainer container inside Cloud Build; it writes a new version folder into GCS
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -lc
+      - |
+        gcloud auth application-default print-access-token >/dev/null
+        docker run --rm \
+          -e MODEL_REGISTRY=/registry \
+          -v gcloud-config:/root/.config \
+          -v /workspace:/workspace \
+          ${_IMAGE}
+    volumes:
+      - name: gcloud-config
+        path: /root/.config
+
+# Grant Cloud Build SA access to the bucket beforehand:
+#   gsutil mb -l us-central1 gs://reco-model-registry
+#   gsutil iam ch serviceAccount:$PROJECT_NUMBER@cloudbuild.gserviceaccount.com:objectAdmin gs://reco-model-registry
