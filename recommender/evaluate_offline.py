@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
 
 from .pipeline import transform
 from .train import (
+    EVAL_USERS_CAP,
     MIN_INTERACTIONS,
     RATING_THRESHOLD,
-    EVAL_USERS_CAP,
     build_UI,
     last_item_holdout,
     reindex,
@@ -72,10 +72,10 @@ def _map_at_k(recs: Sequence[int], truth: Sequence[int], k: int) -> float:
 
 @dataclass
 class UserMetrics:
-    precision: Dict[int, float]
-    recall: Dict[int, float]
-    ndcg: Dict[int, float]
-    map: Dict[int, float]
+    precision: dict[int, float]
+    recall: dict[int, float]
+    ndcg: dict[int, float]
+    map: dict[int, float]
 
 
 def _evaluate_user(recs: Sequence[int], truth: Sequence[int], k_values: Sequence[int]) -> UserMetrics:
@@ -88,7 +88,7 @@ def _evaluate_user(recs: Sequence[int], truth: Sequence[int], k_values: Sequence
     return UserMetrics(precision=precision, recall=recall, ndcg=ndcg, map=apk)
 
 
-def _aggregate_metrics(metrics: Iterable[UserMetrics], k_values: Sequence[int]) -> Dict[str, Dict[str, float]]:
+def _aggregate_metrics(metrics: Iterable[UserMetrics], k_values: Sequence[int]) -> dict[str, dict[str, float]]:
     metrics_list = list(metrics)
     if not metrics_list:
         return {
@@ -98,10 +98,8 @@ def _aggregate_metrics(metrics: Iterable[UserMetrics], k_values: Sequence[int]) 
             "map": {str(k): float("nan") for k in k_values},
         }
 
-    def _mean(selector) -> Dict[str, float]:
-        return {
-            str(k): float(np.mean([selector(m, k) for m in metrics_list])) for k in k_values
-        }
+    def _mean(selector) -> dict[str, float]:
+        return {str(k): float(np.mean([selector(m, k) for m in metrics_list])) for k in k_values}
 
     return {
         "precision": _mean(lambda m, k: m.precision[k]),
@@ -111,14 +109,14 @@ def _aggregate_metrics(metrics: Iterable[UserMetrics], k_values: Sequence[int]) 
     }
 
 
-def _collect_truth(test_df: pd.DataFrame) -> Mapping[int, List[int]]:
-    truth: Dict[int, List[int]] = {}
+def _collect_truth(test_df: pd.DataFrame) -> Mapping[int, list[int]]:
+    truth: dict[int, list[int]] = {}
     for row in test_df.itertuples(index=False):
         truth.setdefault(int(row.uidx), []).append(int(getattr(row, "true_item", row.iidx)))
     return truth
 
 
-def _bucket_by_activity(train_df: pd.DataFrame) -> Dict[int, str]:
+def _bucket_by_activity(train_df: pd.DataFrame) -> dict[int, str]:
     counts = train_df.groupby("uidx").size()
 
     def _label(n: int) -> str:
@@ -135,7 +133,7 @@ def run_offline_eval(
     input_csv: str,
     out_json: str | None = None,
     k_values: Sequence[int] = DEFAULT_K_VALUES,
-) -> Dict[str, object]:
+) -> dict[str, object]:
     df = pd.read_csv(input_csv)
     df = transform.basic_clean(df)
     if not {"user_id", "item_id", "timestamp"}.issubset(df.columns):
@@ -172,7 +170,7 @@ def run_offline_eval(
         rng = np.random.RandomState(42)
         eval_users = sorted(rng.choice(eval_users, size=EVAL_USERS_CAP, replace=False).tolist())
 
-    user_metrics: Dict[int, UserMetrics] = {}
+    user_metrics: dict[int, UserMetrics] = {}
     max_k = max(k_values) if k_values else 0
     for u in eval_users:
         recs = model.recommend(u, UI, k=max_k, exclude_seen=True) if max_k else []
@@ -181,12 +179,12 @@ def run_offline_eval(
     overall = _aggregate_metrics(user_metrics.values(), k_values)
 
     buckets = _bucket_by_activity(train_df)
-    bucket_summary: Dict[str, Dict[str, Dict[str, float]]] = {}
+    bucket_summary: dict[str, dict[str, dict[str, float]]] = {}
     for bucket in sorted(set(buckets.values())):
         members = [metrics for uid, metrics in user_metrics.items() if buckets.get(uid) == bucket]
         bucket_summary[bucket] = _aggregate_metrics(members, k_values)
 
-    results: Dict[str, object] = {
+    results: dict[str, object] = {
         "k_values": [int(k) for k in k_values],
         "users_evaluated": len(eval_users),
         "overall": overall,

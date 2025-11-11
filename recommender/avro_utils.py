@@ -1,8 +1,10 @@
 # recommender/avro_utils.py
-from pathlib import Path
 import json
+from pathlib import Path
+
 from fastavro import parse_schema
 from fastavro.validation import validate
+
 try:
     # fastavro ≥1.9 exposes this
     from fastavro._validate_common import ValidationError as FastAvroValidationError  # type: ignore
@@ -11,15 +13,18 @@ except Exception:  # fallback if symbol moves
 
 _CACHE = {}
 
+
 def load_schema(path: Path) -> dict:
     key = str(path.resolve())
     if key not in _CACHE:
         _CACHE[key] = parse_schema(json.loads(path.read_text()))
     return _CACHE[key]
 
+
 # optional alias if test uses load_parsed_schema
 def load_parsed_schema(path: Path) -> dict:
     return load_schema(path)
+
 
 def assert_valid(schema: dict, record: dict) -> None:
     try:

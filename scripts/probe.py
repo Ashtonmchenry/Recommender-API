@@ -1,10 +1,13 @@
 # scripts/probe.py
-import os, time, random, requests, json
+import os
+import random
 from datetime import datetime
+
+import requests
 from confluent_kafka import SerializingProducer
-from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
+from confluent_kafka.serialization import StringSerializer
 
 TEAM = os.getenv("TEAM", "aerosparks")  # topic prefix
 REQ_TOPIC = f"{TEAM}.reco_requests"
@@ -12,32 +15,41 @@ RESP_TOPIC = f"{TEAM}.reco_responses"
 
 API = os.environ.get("RECO_API", "http://localhost:8080")
 
+
 def utc_ts() -> str:
     return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 def sr_client() -> SchemaRegistryClient:
     url = os.environ["SCHEMA_REGISTRY_URL"]
     key = os.environ["SCHEMA_REGISTRY_KEY"]
     sec = os.environ["SCHEMA_REGISTRY_SECRET"]
-    return SchemaRegistryClient({
-        "url": url,
-        "basic.auth.user.info": f"{key}:{sec}",
-    })
+    return SchemaRegistryClient(
+        {
+            "url": url,
+            "basic.auth.user.info": f"{key}:{sec}",
+        }
+    )
+
 
 def latest_schema(sr: SchemaRegistryClient, subject: str):
     """Return the latest Schema object for a subject."""
     return sr.get_latest_version(subject).schema
 
+
 def make_producer(serializer) -> SerializingProducer:
-    return SerializingProducer({
-        "bootstrap.servers": os.environ["KAFKA_BOOTSTRAP"],
-        "security.protocol": "SASL_SSL",
-        "sasl.mechanisms": "PLAIN",
-        "sasl.username": os.environ["KAFKA_API_KEY"],
-        "sasl.password": os.environ["KAFKA_API_SECRET"],
-        "key.serializer": StringSerializer("utf_8"),
-        "value.serializer": serializer,
-    })
+    return SerializingProducer(
+        {
+            "bootstrap.servers": os.environ["KAFKA_BOOTSTRAP"],
+            "security.protocol": "SASL_SSL",
+            "sasl.mechanisms": "PLAIN",
+            "sasl.username": os.environ["KAFKA_API_KEY"],
+            "sasl.password": os.environ["KAFKA_API_SECRET"],
+            "key.serializer": StringSerializer("utf_8"),
+            "value.serializer": serializer,
+        }
+    )
+
 
 def probe_once():
     sr = sr_client()
@@ -88,9 +100,11 @@ def probe_once():
     prod_resp.flush()
     print("→ sent", resp_event)
 
+
 def main():
     # one-shot; change to a loop if you want it to run continuously
     probe_once()
+
 
 if __name__ == "__main__":
     main()

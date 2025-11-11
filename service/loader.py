@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 import pandas as pd
 
@@ -28,12 +29,12 @@ def from_csv(path: str) -> pd.DataFrame:
     return df
 
 
-def from_kafka(batch: Iterable[Dict[str, Any]]) -> pd.DataFrame:
+def from_kafka(batch: Iterable[dict[str, Any]]) -> pd.DataFrame:
     """Convert decoded Kafka events to a canonical DataFrame."""
 
     df = pd.DataFrame(list(batch))
     cols = {c.lower(): c for c in df.columns}
-    ren: Dict[str, str] = {}
+    ren: dict[str, str] = {}
     if "userid" in cols:
         ren[cols["userid"]] = "user_id"
     if "movieid" in cols:

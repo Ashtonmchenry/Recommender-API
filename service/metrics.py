@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import json
 import math
-from typing import Sequence, Set
+from collections.abc import Sequence
 
 import pandas as pd
 
-
 # ---------- ranking metrics (per-user) ----------
 
-def precision_at_k(recs: Sequence[int], truth: Set[int], k: int) -> float:
+
+def precision_at_k(recs: Sequence[int], truth: set[int], k: int) -> float:
     recs_k = recs[:k]
     if not recs_k:
         return 0.0
@@ -19,7 +19,7 @@ def precision_at_k(recs: Sequence[int], truth: Set[int], k: int) -> float:
     return hits / float(min(k, len(recs)))
 
 
-def recall_at_k(recs: Sequence[int], truth: Set[int], k: int) -> float:
+def recall_at_k(recs: Sequence[int], truth: set[int], k: int) -> float:
     if not truth:
         return 0.0
     recs_k = recs[:k]
@@ -27,7 +27,7 @@ def recall_at_k(recs: Sequence[int], truth: Set[int], k: int) -> float:
     return hits / float(len(truth))
 
 
-def dcg_at_k(recs: Sequence[int], truth: Set[int], k: int) -> float:
+def dcg_at_k(recs: Sequence[int], truth: set[int], k: int) -> float:
     score = 0.0
     for rank, item in enumerate(recs[:k], start=1):
         if item in truth:
@@ -35,14 +35,14 @@ def dcg_at_k(recs: Sequence[int], truth: Set[int], k: int) -> float:
     return score
 
 
-def ndcg_at_k(recs: Sequence[int], truth: Set[int], k: int) -> float:
+def ndcg_at_k(recs: Sequence[int], truth: set[int], k: int) -> float:
     ideal = sum(1.0 / math.log2(r + 1) for r in range(1, min(k, len(truth)) + 1))
     if ideal == 0:
         return 0.0
     return dcg_at_k(recs, truth, k) / ideal
 
 
-def apk(recs: Sequence[int], truth: Set[int], k: int) -> float:
+def apk(recs: Sequence[int], truth: set[int], k: int) -> float:
     """Average Precision@k (for MAP)."""
 
     score = 0.0
@@ -85,9 +85,7 @@ def proxy_kpi(responses: pd.DataFrame, watches: pd.DataFrame, horizon_min: int =
         raise ValueError("responses is missing a movie_ids column")
 
     if r["movie_ids"].dtype == object:
-        r["movie_ids"] = r["movie_ids"].apply(
-            lambda s: json.loads(s) if isinstance(s, str) else s
-        )
+        r["movie_ids"] = r["movie_ids"].apply(lambda s: json.loads(s) if isinstance(s, str) else s)
 
     ts_rec_candidates = [c for c in ("timestamp", "ts", "ts_rec") if c in r.columns]
     ts_watch_candidates = [c for c in ("timestamp", "ts", "ts_watch") if c in w.columns]
@@ -109,9 +107,7 @@ def proxy_kpi(responses: pd.DataFrame, watches: pd.DataFrame, horizon_min: int =
         return 0.0
 
     hits = (
-        merged.assign(
-            hit=(merged["rec_item"].astype(int) == merged["watch_item"].astype(int)).astype(int)
-        )
+        merged.assign(hit=(merged["rec_item"].astype(int) == merged["watch_item"].astype(int)).astype(int))
         .groupby("request_id")["hit"]
         .max()
     )

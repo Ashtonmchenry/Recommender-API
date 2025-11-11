@@ -4,11 +4,11 @@
 # Works with Confluent Cloud's Schema Registry and Avro wire format.
 # ---------------------------------------------------------------------
 
-import os
 import io
 import json
+import os
 import struct
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 try:  # pragma: no cover - exercised via tests with monkeypatch
     from confluent_kafka.schema_registry import SchemaRegistryClient
@@ -19,15 +19,14 @@ from fastavro import parse_schema as avro_parse_schema
 from fastavro import schemaless_reader
 from fastavro.validation import validate as avro_validate
 
-
 # ---------- Environment & SR client ----------
 
-SR_URL    = os.getenv("SCHEMA_REGISTRY_URL")
-SR_KEY    = os.getenv("SCHEMA_REGISTRY_KEY")
+SR_URL = os.getenv("SCHEMA_REGISTRY_URL")
+SR_KEY = os.getenv("SCHEMA_REGISTRY_KEY")
 SR_SECRET = os.getenv("SCHEMA_REGISTRY_SECRET")
 
 
-def _build_schema_registry() -> Optional[SchemaRegistryClient]:
+def _build_schema_registry() -> SchemaRegistryClient | None:
     """Create a Schema Registry client if credentials and library exist."""
     if SchemaRegistryClient is None:
         return None
@@ -44,27 +43,28 @@ _sr = _build_schema_registry()
 
 # ---------- Topic → subject pointers ----------
 # If you add more topics, map them here (defaults to {topic}-value if missing)
-SCHEMA_POINTERS: Dict[str, str] = {
-    "aerosparks.watch":          "aerosparks.watch-value",
-    "aerosparks.rate":           "aerosparks.rate-value",
-    "aerosparks.reco_requests":  "aerosparks.reco_requests-value",
+SCHEMA_POINTERS: dict[str, str] = {
+    "aerosparks.watch": "aerosparks.watch-value",
+    "aerosparks.rate": "aerosparks.rate-value",
+    "aerosparks.reco_requests": "aerosparks.reco_requests-value",
     "aerosparks.reco_responses": "aerosparks.reco_responses-value",
 }
 
 # ---------- Caches ----------
 # Cache parsed fastavro schemas (by subject) and by schema id for wire-format decode
-_SCHEMA_CACHE_BY_SUBJECT: Dict[str, Tuple[str, Dict[str, Any]]] = {}
-_SCHEMA_CACHE_BY_ID: Dict[int, Dict[str, Any]] = {}
+_SCHEMA_CACHE_BY_SUBJECT: dict[str, tuple[str, dict[str, Any]]] = {}
+_SCHEMA_CACHE_BY_ID: dict[int, dict[str, Any]] = {}
 
 
 # ---------- Helpers ----------
+
 
 def _subject_for_topic(topic: str) -> str:
     """Return the Schema Registry subject for a given topic's value schema."""
     return SCHEMA_POINTERS.get(topic, f"{topic}-value")
 
 
-def _parsed_schema_for_subject(subject: str) -> Tuple[str, Dict[str, Any]]:
+def _parsed_schema_for_subject(subject: str) -> tuple[str, dict[str, Any]]:
     """
     Get and cache the latest schema for a subject.
     Returns (schema_type, parsed_schema_dict_for_fastavro).
@@ -73,14 +73,12 @@ def _parsed_schema_for_subject(subject: str) -> Tuple[str, Dict[str, Any]]:
         return _SCHEMA_CACHE_BY_SUBJECT[subject]
 
     if _sr is None:
-        raise RuntimeError(
-            "Schema Registry client not configured. Set SCHEMA_REGISTRY_URL/KEY/SECRET"
-        )
+        raise RuntimeError("Schema Registry client not configured. Set SCHEMA_REGISTRY_URL/KEY/SECRET")
 
     latest = _sr.get_latest_version(subject)  # -> RegisteredSchema
     # latest.schema is a Schema object: schema_str + schema_type (e.g., "AVRO")
     schema_type = getattr(latest.schema, "schema_type", "AVRO")
-    schema_str  = latest.schema.schema_str
+    schema_str = latest.schema.schema_str
     schema_dict = json.loads(schema_str)
 
     parsed = avro_parse_schema(schema_dict)
@@ -95,17 +93,17 @@ def _parsed_schema_for_id(schema_id: int):
     then fall back to the real client.
     """
     try:
-        meta = _sr_schema_by_id(schema_id)           # <-- test can monkeypatch this
+        meta = _sr_schema_by_id(schema_id)  # <-- test can monkeypatch this
         return avro_parse_schema(json.loads(meta["schema"]))
     except Exception:
         # fallback to direct client call if helper is not patched/available
         if _sr is None:
             raise RuntimeError("Schema Registry client not configured")
-        obj = _sr.get_schema(schema_id)              # Schema object
+        obj = _sr.get_schema(schema_id)  # Schema object
         return avro_parse_schema(json.loads(obj.schema_str))
 
 
-def _maybe_decode_confluent_avro(raw: bytes) -> Optional[Dict[str, Any]]:
+def _maybe_decode_confluent_avro(raw: bytes) -> dict[str, Any] | None:
     """
     Detect & decode Confluent wire-format Avro payload.
     Format: [magic=0][schema_id:4 bytes big-endian][avro_payload...]
@@ -124,7 +122,7 @@ def _maybe_decode_confluent_avro(raw: bytes) -> Optional[Dict[str, Any]]:
     return record
 
 
-def _schema_for_topic(topic: str) -> Tuple[str, Dict[str, Any]]:
+def _schema_for_topic(topic: str) -> tuple[str, dict[str, Any]]:
     """
     Get parsed schema for the topic's value subject (latest).
     Returns (schema_type, parsed_schema_dict).
@@ -133,7 +131,7 @@ def _schema_for_topic(topic: str) -> Tuple[str, Dict[str, Any]]:
     return _parsed_schema_for_subject(subject)
 
 
-def _normalize(d: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize(d: dict[str, Any]) -> dict[str, Any]:
     """
     Normalize common fields for downstream sinks.
     - Ensure a 'timestamp' field exists (prefer explicit timestamp fields).
@@ -141,6 +139,7 @@ def _normalize(d: Dict[str, Any]) -> Dict[str, Any]:
     if "timestamp" not in d:
         d["timestamp"] = d.get("ts") or d.get("time") or d.get("event_time")
     return d
+
 
 # --- Compatibility shim so tests can monkeypatch this symbol ---
 def _sr_schema_by_id(schema_id: int):
@@ -156,7 +155,8 @@ def _sr_schema_by_id(schema_id: int):
 
 # ---------- Public API ----------
 
-def parse_event(topic: str, raw: bytes) -> Dict[str, Any]:
+
+def parse_event(topic: str, raw: bytes) -> dict[str, Any]:
     # 1) Try wire format …
     avro_obj = _maybe_decode_confluent_avro(raw)
     if avro_obj is not None:
@@ -178,5 +178,3 @@ def parse_event(topic: str, raw: bytes) -> Dict[str, Any]:
     parsed_schema = res[1] if isinstance(res, tuple) else res
     avro_validate(data, parsed_schema)
     return data
-
-

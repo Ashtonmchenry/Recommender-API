@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from recommender.avro_utils import load_parsed_schema, assert_valid
+from recommender.avro_utils import assert_valid, load_parsed_schema
 
 
 def test_reco_response_valid():

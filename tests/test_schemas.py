@@ -1,19 +1,19 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import io
 import json
 import struct
-import io
-import pytest
 
+import pytest
 from fastavro import parse_schema as avro_parse_schema
 from fastavro import schemaless_writer
-from recommender import schemas
 
+from recommender import schemas
 
 WATCH_SCHEMA = {
     "type": "record",
@@ -37,9 +37,10 @@ RATE_SCHEMA = {
         {"name": "user_id", "type": "long"},
         {"name": "movie_id", "type": "long"},
         {"name": "rating", "type": "float"},
-        {"name": "timestamp", "type": "string"}
+        {"name": "timestamp", "type": "string"},
     ],
 }
+
 
 def _wire(payload: dict, schema: dict, schema_id: int = 1234) -> bytes:
     """Build Confluent wire-format bytes: 0x00 + schema_id (big-endian) + Avro binary."""
@@ -49,6 +50,7 @@ def _wire(payload: dict, schema: dict, schema_id: int = 1234) -> bytes:
     buf.write(struct.pack(">I", schema_id))
     schemaless_writer(buf, parsed, payload)
     return buf.getvalue()
+
 
 def test_wire_format_watch_decodes_and_validates(monkeypatch):
     # Arrange
@@ -66,6 +68,7 @@ def test_wire_format_watch_decodes_and_validates(monkeypatch):
     def fake_sr_by_id(schema_id: int):
         assert schema_id == 444
         return {"schema": json.dumps(WATCH_SCHEMA)}
+
     monkeypatch.setattr(schemas, "_sr_schema_by_id", fake_sr_by_id)
     parsed_watch = avro_parse_schema(WATCH_SCHEMA)
     monkeypatch.setattr(schemas, "_schema_for_topic", lambda _topic: ("AVRO", parsed_watch))
@@ -79,6 +82,7 @@ def test_wire_format_watch_decodes_and_validates(monkeypatch):
     assert out["movie_id"] == 99
     assert out["timestamp"] == "2025-10-22T01:23:45Z"
     assert out["platform"] == "web"
+
 
 def test_json_path_validates_against_topic_schema(monkeypatch):
     # Arrange
@@ -111,6 +115,7 @@ def test_json_path_validates_against_topic_schema(monkeypatch):
     with pytest.raises(Exception):
         schemas.parse_event(topic, json.dumps(bad).encode())
 
+
 def test_normalization_maps_ts_to_timestamp(monkeypatch):
     topic = "aerosparks.watch"
     parsed = avro_parse_schema(WATCH_SCHEMA)
@@ -125,6 +130,7 @@ def test_normalization_maps_ts_to_timestamp(monkeypatch):
     }
     out = schemas.parse_event(topic, json.dumps(msg).encode())
     assert out["timestamp"] == "2025-10-22T02:00:00Z"
+
 
 from unittest.mock import MagicMock
 
@@ -165,4 +171,3 @@ def test_avro_validate_bad(monkeypatch):
     ok, errs = avro_registry.validate_records("team.reco_responses-value", [{"user_id": "oops"}])
     assert not ok
     assert len(errs) == 1
-

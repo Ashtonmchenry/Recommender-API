@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable, MutableMapping, Sequence
 from pathlib import Path
-from typing import Dict, Iterable, List, MutableMapping, Sequence
 
 import numpy as np
 import pandas as pd
 
 
-def _parse_movie_ids(value) -> List[int]:
+def _parse_movie_ids(value) -> list[int]:
     """Return a list of ints from whatever representation is provided."""
     if isinstance(value, list):
         return [int(v) for v in value]
@@ -47,9 +47,9 @@ def _parse_movie_ids(value) -> List[int]:
         return []
 
 
-def _build_watch_index(watches: pd.DataFrame) -> MutableMapping[int, List[tuple]]:
+def _build_watch_index(watches: pd.DataFrame) -> MutableMapping[int, list[tuple]]:
     """Group watch events by user for fast lookups during scoring."""
-    idx: Dict[int, List[tuple]] = {}
+    idx: dict[int, list[tuple]] = {}
     if watches.empty:
         return idx
     grouped = watches.groupby("user_id")
@@ -62,7 +62,7 @@ def _build_watch_index(watches: pd.DataFrame) -> MutableMapping[int, List[tuple]
 
 def _success_within_window(
     row: pd.Series,
-    watch_index: MutableMapping[int, List[tuple]],
+    watch_index: MutableMapping[int, list[tuple]],
     horizon_seconds: int,
 ) -> int:
     start = int(row["ts"])
@@ -79,7 +79,7 @@ def _success_within_window(
     return 0
 
 
-def _compute_latency_percentiles(latencies: Iterable[float]) -> Dict[str, float]:
+def _compute_latency_percentiles(latencies: Iterable[float]) -> dict[str, float]:
     arr = np.fromiter((float(x) for x in latencies if pd.notna(x)), dtype=float)
     if arr.size == 0:
         return {"p50": float("nan"), "p95": float("nan")}
@@ -95,7 +95,7 @@ def evaluate_online(
     horizon_min: int = 10,
     k_values: Sequence[int] | None = None,
     out_json: str | None = None,
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """Evaluate online proxy KPI from logged responses and watch events."""
 
     if k_values is None:
@@ -128,7 +128,7 @@ def evaluate_online(
         horizon_seconds=horizon_seconds,
     )
 
-    summary: Dict[str, object] = {
+    summary: dict[str, object] = {
         "horizon_minutes": int(horizon_min),
         "total_responses": int(len(responses)),
         "success_rate": float(responses["success"].mean()) if len(responses) else float("nan"),

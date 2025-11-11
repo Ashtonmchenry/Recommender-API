@@ -1,12 +1,15 @@
 # recommender/sinks.py
-import os, io, datetime as dt
-from typing import List, Dict, Any, Optional
+import datetime as dt
+import os
+from typing import Any
+
 import pandas as pd
 
 # Optional S3 upload
 _S3_ENABLED = bool(os.getenv("S3_BUCKET"))
 if _S3_ENABLED:
     import boto3
+
     _s3 = boto3.client(
         "s3",
         endpoint_url=os.getenv("S3_ENDPOINT_URL"),  # optional (e.g., MinIO)
@@ -18,13 +21,16 @@ if _S3_ENABLED:
 OUT_DIR = os.getenv("OUT_DIR", "data")
 FORMATS = [f.strip().lower() for f in os.getenv("OUTPUT_FORMATS", "parquet,csv").split(",") if f.strip()]
 
+
 def _ts():
     return dt.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+
 
 def _ensure_local_dir(path: str):
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
-def _write_local(df: pd.DataFrame, topic: str, fmt: str, batch_tag: str) -> Optional[str]:
+
+def _write_local(df: pd.DataFrame, topic: str, fmt: str, batch_tag: str) -> str | None:
     date_part = dt.datetime.utcnow().strftime("%Y-%m-%d")
     base = os.path.join(OUT_DIR, topic, f"date={date_part}")
     _ensure_local_dir(base + os.sep)
@@ -38,8 +44,9 @@ def _write_local(df: pd.DataFrame, topic: str, fmt: str, batch_tag: str) -> Opti
         return path
     return None
 
+
 def _upload_s3(local_path: str, topic: str):
-    if not _S3_ENABLED: 
+    if not _S3_ENABLED:
         return
     bucket = os.environ["S3_BUCKET"]
     prefix = os.getenv("S3_PREFIX", "").strip("/")
@@ -47,7 +54,8 @@ def _upload_s3(local_path: str, topic: str):
     key = f"{prefix}/{rel}" if prefix else rel
     _s3.upload_file(local_path, bucket, key)
 
-def write_batch(records: List[Dict[str, Any]], topic: str) -> Dict[str, str]:
+
+def write_batch(records: list[dict[str, Any]], topic: str) -> dict[str, str]:
     """
     Write a batch to all configured formats. Returns map {fmt: local_path}.
     """

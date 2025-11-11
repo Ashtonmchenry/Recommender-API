@@ -8,10 +8,11 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Request
@@ -69,7 +70,7 @@ MODEL_AGE = Gauge(
 # ----------------------------------------------------------------------------
 # Static configuration / defaults
 # ----------------------------------------------------------------------------
-DEFAULT_RECOMMENDATIONS: List[int] = [50, 172, 1, 99, 87]
+DEFAULT_RECOMMENDATIONS: list[int] = [50, 172, 1, 99, 87]
 RESPONSE_SCHEMA = load_parsed_schema(Path("recommender/avro-schemas/RecoResponse.avsc"))
 
 MAX_CONCURRENCY = int(os.getenv("MAX_CONCURRENCY", "16"))
@@ -91,6 +92,7 @@ _sem = asyncio.BoundedSemaphore(MAX_CONCURRENCY)
 # Model registry utilities
 # ----------------------------------------------------------------------------
 
+
 def _parse_created_at(raw: str | None) -> float | None:
     """Parse ISO-8601 timestamps from metadata and return epoch seconds."""
 
@@ -101,11 +103,11 @@ def _parse_created_at(raw: str | None) -> float | None:
     except ValueError:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt.timestamp()
 
 
-def _parse_metadata_text(text: str) -> Dict[str, Any]:
+def _parse_metadata_text(text: str) -> dict[str, Any]:
     """Best-effort YAML/JSON parser without requiring PyYAML."""
 
     if not text.strip():
@@ -114,7 +116,7 @@ def _parse_metadata_text(text: str) -> Dict[str, Any]:
     try:  # Prefer YAML if available.
         import yaml  # type: ignore
     except ModuleNotFoundError:
-        data = None
+        pass
     else:  # pragma: no cover - exercised when PyYAML present
         try:
             parsed = yaml.safe_load(text)
@@ -122,7 +124,6 @@ def _parse_metadata_text(text: str) -> Dict[str, Any]:
             parsed = None
         if isinstance(parsed, dict):
             return parsed
-        data = parsed
 
     # JSON fallback
     try:
@@ -132,7 +133,7 @@ def _parse_metadata_text(text: str) -> Dict[str, Any]:
     if isinstance(parsed, dict):
         return parsed
 
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     for line in text.splitlines():
         if not line or line.lstrip().startswith("#") or ":" not in line:
             continue
@@ -159,11 +160,11 @@ class ModelBundle:
     version: str
     path: Path
     model: Any
-    metadata: Dict[str, Any]
-    inverse_item_map: Dict[int, int]
-    cold_start_ranking: List[int]
+    metadata: dict[str, Any]
+    inverse_item_map: dict[int, int]
+    cold_start_ranking: list[int]
 
-    def recommend(self, user_id: int, k: int) -> List[int]:
+    def recommend(self, user_id: int, k: int) -> list[int]:
         """Return top-k recommendations for ``user_id`` using the cached model."""
 
         k = max(0, min(int(k), len(self.cold_start_ranking)))
@@ -197,7 +198,7 @@ class ModelRegistry:
     def _bundle_dir(self, version: str) -> Path:
         return self._root / version
 
-    def _load_metadata(self, version_dir: Path) -> Dict[str, Any]:
+    def _load_metadata(self, version_dir: Path) -> dict[str, Any]:
         meta_path = version_dir / self._metadata_name
         if not meta_path.exists():
             return {}
@@ -219,8 +220,10 @@ class ModelRegistry:
             raise FileNotFoundError(f"Model artifact missing: {artifact_path}")
 
         logger.info("Loading model version %s from %s", version, artifact_path)
-        from recommender import train as train_module
         import sys
+
+        from recommender import train as train_module
+
         if "__main__" in sys.modules:
             setattr(sys.modules["__main__"], "ALSModel", train_module.ALSModel)
         model = load_model(str(artifact_path))
@@ -326,11 +329,12 @@ def configure_registry(
 # Recommendation helpers
 # ----------------------------------------------------------------------------
 
+
 def _recommend_for_user(
     user_id: int,
     k: int,
     model_version: str | None = None,
-) -> Tuple[List[int], str | None]:
+) -> tuple[list[int], str | None]:
     """Generate recommendations and return (items, resolved_model_version)."""
 
     try:
@@ -433,7 +437,7 @@ async def backpressure_guard(request: Request, call_next):
     try:
         # Non-blocking-ish acquire (tiny timeout) -> reject fast if saturated
         await asyncio.wait_for(_sem.acquire(), timeout=ACQUIRE_TIMEOUT_SEC)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         REJECTS.inc()
         return JSONResponse({"detail": "Backpressure: server busy"}, status_code=503)
 

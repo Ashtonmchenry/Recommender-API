@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, Tuple
+import argparse
+from collections.abc import Iterable
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -50,18 +52,18 @@ def kl_divergence(ref: pd.Series, cur: pd.Series, bins: int = 20) -> float:
     return float(np.sum(p_pct * np.log(p_pct / q_pct)))
 
 
-DEFAULT_THRESHOLDS: Dict[str, float] = {"psi": 0.2, "kl": 0.5}
+DEFAULT_THRESHOLDS: dict[str, float] = {"psi": 0.2, "kl": 0.5}
 
 
 def detect_drift(
     ref_df: pd.DataFrame,
     cur_df: pd.DataFrame,
     columns: Iterable[str] = ("user_id", "movie_id", "rating"),
-    thresholds: Dict[str, float] | None = None,
-) -> Tuple[Dict[str, Dict[str, float]], bool]:
+    thresholds: dict[str, float] | None = None,
+) -> tuple[dict[str, dict[str, float]], bool]:
     """Return (metrics, drift_flag) comparing reference vs. current data."""
 
-    metrics: Dict[str, Dict[str, float]] = {}
+    metrics: dict[str, dict[str, float]] = {}
     limits = thresholds or DEFAULT_THRESHOLDS
 
     drift = False
@@ -85,38 +87,46 @@ def detect_drift(
 def _run_self_checks() -> None:
     """Execute lightweight drift checks for local validation."""
 
-    ref = pd.DataFrame({
-        "user_id": [1, 1, 2, 2],
-        "movie_id": [10, 11, 10, 11],
-        "rating": [3, 4, 3, 4],
-    })
-    cur = pd.DataFrame({
-        "user_id": [1, 2, 1, 2],
-        "movie_id": [10, 11, 10, 11],
-        "rating": [3, 4, 3, 4],
-    })
+    ref = pd.DataFrame(
+        {
+            "user_id": [1, 1, 2, 2],
+            "movie_id": [10, 11, 10, 11],
+            "rating": [3, 4, 3, 4],
+        }
+    )
+    cur = pd.DataFrame(
+        {
+            "user_id": [1, 2, 1, 2],
+            "movie_id": [10, 11, 10, 11],
+            "rating": [3, 4, 3, 4],
+        }
+    )
     metrics, flagged = detect_drift(ref, cur)
     assert set(metrics) == {"user_id", "movie_id", "rating"}
     assert flagged is False
 
-    ref_shift = pd.DataFrame({
-        "user_id": [1] * 50 + [2] * 50,
-        "movie_id": [10] * 100,
-        "rating": [4.0] * 100,
-    })
-    cur_shift = pd.DataFrame({
-        "user_id": [9] * 100,
-        "movie_id": [99] * 100,
-        "rating": [1.0] * 100,
-    })
+    ref_shift = pd.DataFrame(
+        {
+            "user_id": [1] * 50 + [2] * 50,
+            "movie_id": [10] * 100,
+            "rating": [4.0] * 100,
+        }
+    )
+    cur_shift = pd.DataFrame(
+        {
+            "user_id": [9] * 100,
+            "movie_id": [99] * 100,
+            "rating": [1.0] * 100,
+        }
+    )
     shift_metrics, shift_flagged = detect_drift(ref_shift, cur_shift)
     assert shift_flagged is True
     for values in shift_metrics.values():
         assert values["psi"] >= DEFAULT_THRESHOLDS["psi"] or values["kl"] >= DEFAULT_THRESHOLDS["kl"]
 
+
 # ---------------- CLI/Reporting glue ----------------
-import argparse
-from pathlib import Path
+
 
 def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
@@ -124,20 +134,28 @@ def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
     rename_map = {}
     # users
     if "user_id" not in out.columns:
-        if "userId" in out.columns: rename_map["userId"] = "user_id"
-        elif "userid" in out.columns: rename_map["userid"] = "user_id"
+        if "userId" in out.columns:
+            rename_map["userId"] = "user_id"
+        elif "userid" in out.columns:
+            rename_map["userid"] = "user_id"
     # items
     if "movie_id" not in out.columns:
-        if "movieId" in out.columns: rename_map["movieId"] = "movie_id"
-        elif "item_id" in out.columns: rename_map["item_id"] = "movie_id"
-        elif "movieid" in out.columns: rename_map["movieid"] = "movie_id"
+        if "movieId" in out.columns:
+            rename_map["movieId"] = "movie_id"
+        elif "item_id" in out.columns:
+            rename_map["item_id"] = "movie_id"
+        elif "movieid" in out.columns:
+            rename_map["movieid"] = "movie_id"
     # rating
     if "rating" not in out.columns:
-        if "Rating" in out.columns: rename_map["Rating"] = "rating"
+        if "Rating" in out.columns:
+            rename_map["Rating"] = "rating"
     # timestamps
     if "timestamp" not in out.columns:
-        if "ts" in out.columns: rename_map["ts"] = "timestamp"
-        elif "Timestamp" in out.columns: rename_map["Timestamp"] = "timestamp"
+        if "ts" in out.columns:
+            rename_map["ts"] = "timestamp"
+        elif "Timestamp" in out.columns:
+            rename_map["Timestamp"] = "timestamp"
 
     if rename_map:
         out = out.rename(columns=rename_map)
@@ -150,36 +168,47 @@ def _freq(series: pd.Series, topn: int = 20) -> pd.Series:
     s.index = s.index.astype(str)
     return s
 
+
 def _drift_table(
     ref_df: pd.DataFrame,
     cur_df: pd.DataFrame,
     columns=("user_id", "movie_id", "rating"),
-    thresholds: Dict[str, float] | None = None,
+    thresholds: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     metrics, flagged = detect_drift(ref_df, cur_df, columns=columns, thresholds=thresholds)
     rows = []
     for col in columns:
         if col in metrics:
-            rows.append({
-                "column": col,
-                "psi": round(metrics[col]["psi"], 6),
-                "kl": round(metrics[col]["kl"], 6),
-                "psi_thresh": (thresholds or DEFAULT_THRESHOLDS)["psi"],
-                "kl_thresh": (thresholds or DEFAULT_THRESHOLDS)["kl"],
-                "flagged": (metrics[col]["psi"] > (thresholds or DEFAULT_THRESHOLDS)["psi"]) or
-                           (metrics[col]["kl"]  > (thresholds or DEFAULT_THRESHOLDS)["kl"]),
-            })
+            rows.append(
+                {
+                    "column": col,
+                    "psi": round(metrics[col]["psi"], 6),
+                    "kl": round(metrics[col]["kl"], 6),
+                    "psi_thresh": (thresholds or DEFAULT_THRESHOLDS)["psi"],
+                    "kl_thresh": (thresholds or DEFAULT_THRESHOLDS)["kl"],
+                    "flagged": (metrics[col]["psi"] > (thresholds or DEFAULT_THRESHOLDS)["psi"])
+                    or (metrics[col]["kl"] > (thresholds or DEFAULT_THRESHOLDS)["kl"]),
+                }
+            )
         else:
-            rows.append({"column": col, "psi": None, "kl": None,
-                         "psi_thresh": (thresholds or DEFAULT_THRESHOLDS)["psi"],
-                         "kl_thresh": (thresholds or DEFAULT_THRESHOLDS)["kl"],
-                         "flagged": None})
+            rows.append(
+                {
+                    "column": col,
+                    "psi": None,
+                    "kl": None,
+                    "psi_thresh": (thresholds or DEFAULT_THRESHOLDS)["psi"],
+                    "kl_thresh": (thresholds or DEFAULT_THRESHOLDS)["kl"],
+                    "flagged": None,
+                }
+            )
     tbl = pd.DataFrame(rows)
     tbl.attrs["overall_flagged"] = any(bool(r["flagged"]) for r in rows if r["flagged"] is not None)
     return tbl
 
+
 def _plot_quick(ref_df: pd.DataFrame, cur_df: pd.DataFrame, out_dir: Path, topn: int = 20) -> None:
     import matplotlib.pyplot as plt
+
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Items (movie_id)
@@ -241,14 +270,15 @@ def _plot_quick(ref_df: pd.DataFrame, cur_df: pd.DataFrame, out_dir: Path, topn:
 def main():
     ap = argparse.ArgumentParser(description="Data drift report (PSI/KL + quick plots)")
     ap.add_argument("--baseline", required=True, help="CSV (e.g., data/ratings.csv)")
-    ap.add_argument("--current",  required=True, help="CSV (e.g., out_eval/features.csv)")
-    ap.add_argument("--columns",  default="user_id,item_id,rating",
-                    help="comma-separated list; will map item_id→movie_id internally")
-    ap.add_argument("--out",      default="out_eval/drift_summary.csv", help="where to write the table CSV")
-    ap.add_argument("--plots",    default="out_eval/drift_plots",       help="directory for PNGs")
+    ap.add_argument("--current", required=True, help="CSV (e.g., out_eval/features.csv)")
+    ap.add_argument(
+        "--columns", default="user_id,item_id,rating", help="comma-separated list; will map item_id→movie_id internally"
+    )
+    ap.add_argument("--out", default="out_eval/drift_summary.csv", help="where to write the table CSV")
+    ap.add_argument("--plots", default="out_eval/drift_plots", help="directory for PNGs")
     ap.add_argument("--psi-threshold", type=float, default=DEFAULT_THRESHOLDS["psi"])
-    ap.add_argument("--kl-threshold",  type=float, default=DEFAULT_THRESHOLDS["kl"])
-    ap.add_argument("--topn",     type=int, default=20, help="top-N for popularity plots")
+    ap.add_argument("--kl-threshold", type=float, default=DEFAULT_THRESHOLDS["kl"])
+    ap.add_argument("--topn", type=int, default=20, help="top-N for popularity plots")
     args = ap.parse_args()
 
     ref_df = pd.read_csv(args.baseline)
@@ -268,6 +298,7 @@ def main():
     # print table nicely
     try:
         from tabulate import tabulate
+
         print(tabulate(table, headers="keys", tablefmt="github", floatfmt=".6f"))
     except Exception:
         print(table.to_string(index=False))
@@ -278,6 +309,7 @@ def main():
 
     # plots
     _plot_quick(ref_df, cur_df, Path(args.plots), topn=args.topn)
+
 
 if __name__ == "__main__":
     main()

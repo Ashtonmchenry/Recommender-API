@@ -8,10 +8,11 @@ import json
 import math
 import os
 import shutil
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -25,12 +26,13 @@ from .pipeline import transform
 K = 20
 MIN_INTERACTIONS = 5
 EVAL_USERS_CAP = 5000
-RATING_THRESHOLD = 3.5        # binarize: rating > threshold = positive
+RATING_THRESHOLD = 3.5  # binarize: rating > threshold = positive
 ALS_FACTORS = 64
 ALS_REG = 0.01
 ALS_ITERS = 20
 
 # -------- utils (chronological split + indexing) --------
+
 
 def _normalize_time(df: pd.DataFrame) -> pd.DataFrame:
     """Accept 'ts' or 'timestamp'; always return 'timestamp'."""
@@ -53,7 +55,7 @@ def reindex(df: pd.DataFrame, min_interactions: int = MIN_INTERACTIONS) -> pd.Da
     return df
 
 
-def last_item_holdout(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def last_item_holdout(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Chronological last-item holdout per user."""
 
     df = _normalize_time(df)
@@ -63,11 +65,7 @@ def last_item_holdout(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
     tmp = df.reset_index(drop=True).sort_values(["uidx", "timestamp"])
     last_idx = tmp.groupby("uidx")["timestamp"].idxmax()
 
-    test = (
-        tmp.loc[last_idx, ["uidx", item_col]]
-        .rename(columns={item_col: "true_item"})
-        .reset_index(drop=True)
-    )
+    test = tmp.loc[last_idx, ["uidx", item_col]].rename(columns={item_col: "true_item"}).reset_index(drop=True)
     train = tmp.drop(index=last_idx).reset_index(drop=True)
     return train, test
 
@@ -84,7 +82,7 @@ def build_UI(train: pd.DataFrame, n_users: int, n_items: int, rating_threshold: 
     return sparse.coo_matrix((vals, (rows, cols)), shape=(n_users, n_items)).tocsr()
 
 
-def seen_by_user(UI: sparse.csr_matrix) -> List[set]:
+def seen_by_user(UI: sparse.csr_matrix) -> list[set]:
     return [set(UI[u].indices) for u in range(UI.shape[0])]
 
 
@@ -100,6 +98,7 @@ def ndcg_at_k(recs: Iterable[int], t: int) -> float:
 
 
 # -------- ALS model wrapper --------
+
 
 @dataclass
 class ALSModel:
@@ -123,6 +122,7 @@ class ALSModel:
 
 # -------- registry + metadata helpers --------
 
+
 def _sha256(path: Path) -> str:
     """Compute a content hash so downstream services can verify integrity."""
 
@@ -133,7 +133,7 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _dump_metadata(path: Path, payload: Dict[str, Any]) -> None:
+def _dump_metadata(path: Path, payload: dict[str, Any]) -> None:
     """Write metadata as YAML when available, JSON otherwise."""
 
     try:
@@ -149,15 +149,15 @@ def _dump_metadata(path: Path, payload: Dict[str, Any]) -> None:
 def _publish_to_registry(
     model_path: Path,
     registry: str,
-    metadata: Dict[str, Any],
+    metadata: dict[str, Any],
     explicit_version: str | None,
-) -> Tuple[str, Dict[str, Any], Path]:
+) -> tuple[str, dict[str, Any], Path]:
     """Copy the trained model into a versioned registry folder and persist metadata."""
 
     registry_root = Path(registry)
     registry_root.mkdir(parents=True, exist_ok=True)
 
-    version = explicit_version or f"v{datetime.now(timezone.utc):%Y%m%d%H%M%S}"
+    version = explicit_version or f"v{datetime.now(UTC):%Y%m%d%H%M%S}"
     version_dir = registry_root / version
     version_dir.mkdir(parents=True, exist_ok=True)
 
@@ -168,7 +168,7 @@ def _publish_to_registry(
     enriched.update(
         {
             "version": version,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "artifact": {
                 "filename": artifact_path.name,
                 "sha256": _sha256(artifact_path),
@@ -183,7 +183,8 @@ def _publish_to_registry(
 
 # -------- public API --------
 
-def train_baseline(df: pd.DataFrame) -> Tuple[Any, Dict[str, float]]:
+
+def train_baseline(df: pd.DataFrame) -> tuple[Any, dict[str, float]]:
     """
     Train ALS on implicit positives with chronological evaluation.
     df columns required: user_id, item_id, rating, timestamp (or ts)
@@ -217,7 +218,6 @@ def train_baseline(df: pd.DataFrame) -> Tuple[Any, Dict[str, float]]:
         idx = np.random.RandomState(42).choice(len(users), size=EVAL_USERS_CAP, replace=False)
         users, true_items = users[idx], true_items[idx]
 
-    seen = seen_by_user(UI)
     hits, ndcgs = [], []
     for u, t in zip(users, true_items):
         recs = model.recommend(u, UI, k=K, exclude_seen=True)
@@ -260,7 +260,7 @@ def main():
     output_path.parent.mkdir(parents=True, exist_ok=True)
     serialize.save_model(model, str(output_path))
 
-    base_metadata: Dict[str, Any] = {
+    base_metadata: dict[str, Any] = {
         "metrics": metrics,
         "hyperparams": {
             "factors": ALS_FACTORS,

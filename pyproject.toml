@@ -1,9 +1,25 @@
 [tool.ruff]
-line-length = 100
-target-version = "py311"
-extend-select = ["E","F","I"]
+target-version = "py312"
+line-length = 120
+exclude = [
+  ".venv",
+  ".git",
+  "data",
+  "model_registry",
+  "notebooks",          # optional: ignore notebooks entirely
+  "**/__pycache__",
+]
 
-[tool.coverage.run]
-branch = true
-source = ["recommender","service","stream","scripts","quality"]
-omit = ["**/__init__.py"]
+[tool.ruff.lint]
+# E = pycodestyle (errors), F = pyflakes, I = import sort, UP = pyupgrade
+select = ["E", "F", "I", "UP"]
+ignore = []            # keep empty; we’ll use per-file ignores below
+
+[tool.ruff.lint.isort]
+known-first-party = ["recommender", "service"]
+
+# Use a TOML table (not an inline table) for per-file ignores.
+[tool.ruff.lint.per-file-ignores]
+"tests/**.py" = ["E402"]                           # tests often tweak sys.path before imports
+"service/app.py" = ["E402"]                        # keep imports-as-is; we’ll still fix real issues below
+"notebooks/**.py" = ["E402", "F401", "F811", "F821"]  # or remove this line if you excluded notebooks above
