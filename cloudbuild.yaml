@@ -1,30 +1,48 @@
-# cloudbuild.yaml
+timeout: "1200s"
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 substitutions:
-  _SERVICE: "reco-api"                          # your Cloud Run service name
-  _REGION:  "us-central1"
-  _REPO:    "us-central1-docker.pkg.dev/recommender-api-476122/reco"
-  _IMAGE:   "${_REPO}/reco-api:${SHORT_SHA}"
+  _REGION: "us-central1"
+  _PROJECT_ID: "recommender-api-476122"
+  _REPO: "reco"
+  _SERVICE: "reco-api"
 
 steps:
-# Build with your Dockerfile that lives under docker/
+# Build the image from docker/service.Dockerfile
 - name: gcr.io/cloud-builders/docker
-  args: ["build", "-f", "docker/service.Dockerfile", "-t", "${_IMAGE}", "."]
+  id: build
+  args:
+    - build
+    - -f
+    - docker/service.Dockerfile
+    - -t
+    - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE}:latest
+    - .
 
-# Push to Artifact Registry
+# Push it
 - name: gcr.io/cloud-builders/docker
-  args: ["push", "${_IMAGE}"]
+  id: push
+  args:
+    - push
+    - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE}:latest
 
 # Deploy to Cloud Run
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  id: deploy
   entrypoint: gcloud
   args:
-    [
-      "run","deploy","${_SERVICE}",
-      "--image","${_IMAGE}",
-      "--region","${_REGION}",
-      "--platform","managed",
-      "--allow-unauthenticated",
-      "--set-env-vars","MODEL_REGISTRY=${_MODEL_REGISTRY}"
-    ]
+    - run
+    - deploy
+    - ${_SERVICE}
+    - --image
+    - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE}:latest
+    - --region
+    - ${_REGION}
+    - --platform=managed
+    - --allow-unauthenticated
+    - --set-env-vars
+    - MODEL_REGISTRY=/app/model_registry
 
-images: ["${_IMAGE}"]
+images:
+- ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE}:latest

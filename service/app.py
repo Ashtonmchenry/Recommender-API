@@ -376,7 +376,8 @@ def health() -> dict:
     return {"status": "ok", "version": version}
 
 
-@app.get("/healthz", response_class=PlainTextResponse)
+@app.get("/healthz", include_in_schema=False, response_class=PlainTextResponse)
+@app.get("/healthz/", include_in_schema=False, response_class=PlainTextResponse)
 def healthz() -> str:
     return "ok"
 
