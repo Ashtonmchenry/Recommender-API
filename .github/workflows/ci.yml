@@ -1,79 +1,68 @@
-name: ci
+name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches: [ main ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run tests
-        run: echo "No tests yet"
-
-  build_and_deploy:
-    runs-on: ubuntu-latest
-    needs: test
-
-    permissions:
-      contents: "read"
-      id-token: "write"       # REQUIRED for WIF
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # -----------------------------------------------------------
-      # 1️ Authenticate GitHub → Google Cloud (WIF)
-      # -----------------------------------------------------------
-      - name: Auth to GCP (WIF)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest
+
+  build_and_deploy:
+    needs: test
+    runs-on: ubuntu-latest
+
+    # Needed so auth can mint a token
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (WIF)
+        id: auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: "projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/github"
-          service_account: "gha-deployer@PROJECT_ID.iam.gserviceaccount.com"
-          create_credentials_file: true
+          token_format: access_token
+          workload_identity_provider: "projects/231383754275/locations/global/workloadIdentityPools/github-pool/providers/github"
+          service_account: "gh-deployer@recommender-api-476122.iam.gserviceaccount.com"
 
-      # -----------------------------------------------------------
-      # 2️ Setup gcloud
-      # -----------------------------------------------------------
-      - name: Install gcloud
+      - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: "recommender-api-476122"
 
-      # -----------------------------------------------------------
-      # 3️ Configure Docker for Artifact Registry
-      # -----------------------------------------------------------
       - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-      # -----------------------------------------------------------
-      # 4️ Build image
-      # -----------------------------------------------------------
-      - name: Build container image
+      - name: Build & push image with Cloud Build
         run: |
-          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+          gcloud builds submit \
+            --tag us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api:github-${{ github.sha }} \
+            --project recommender-api-476122
 
-      # -----------------------------------------------------------
-      # 5️ Push image
-      # -----------------------------------------------------------
-      - name: Push container image
-        run: |
-          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
-
-      # -----------------------------------------------------------
-      # 6️ Deploy to Cloud Run
-      # -----------------------------------------------------------
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
-            --region=${{ env.REGION }} \
-            --platform=managed \
-            --allow-unauthenticated
-
-    env:
-      PROJECT_ID: recommender-api-476122
-      REGION: us-central1
-      SERVICE_NAME: reco-api
-      ARTIFACT_REPO: reco
+          gcloud run deploy reco-api \
+            --image us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api:github-${{ github.sha }} \
+            --platform managed \
+            --region us-central1 \
+            --allow-unauthenticated \
+            --project recommender-api-476122
