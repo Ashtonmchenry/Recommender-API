@@ -21,7 +21,3 @@ gcloud run deploy reco-api `
 --------------- Check the deployed service URL --------------------------
 
 gcloud run services describe reco-api --region us-central1 --format="value(status.url)"
-
-
-
-
