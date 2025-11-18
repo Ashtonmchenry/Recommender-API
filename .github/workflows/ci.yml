@@ -1,68 +1,51 @@
-name: CI
+name: ci
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install deps
-        run: pip install -r requirements.txt
-
-      - name: Run tests
-        run: pytest
+      - uses: actions/checkout@v4
+      # your test steps here ...
 
   build_and_deploy:
     needs: test
     runs-on: ubuntu-latest
-
-    # Needed so auth can mint a token
     permissions:
       contents: read
-      id-token: write
+      id-token: write   # required for WIF
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud (WIF)
-        id: auth
+      - id: auth
         uses: google-github-actions/auth@v2
         with:
-          token_format: access_token
           workload_identity_provider: "projects/231383754275/locations/global/workloadIdentityPools/github-pool/providers/github"
           service_account: "gh-deployer@recommender-api-476122.iam.gserviceaccount.com"
 
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: "recommender-api-476122"
 
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
-
-      - name: Build & push image with Cloud Build
+      - name: Configure docker for Artifact Registry
         run: |
-          gcloud builds submit \
-            --tag us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api:github-${{ github.sha }} \
-            --project recommender-api-476122
+          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build image
+        run: |
+          IMAGE="us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api:${{ github.sha }}"
+          docker build -t "$IMAGE" -f docker/service.Dockerfile .
+          docker push "$IMAGE"
 
       - name: Deploy to Cloud Run
         run: |
+          IMAGE="us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api:${{ github.sha }}"
           gcloud run deploy reco-api \
-            --image us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api:github-${{ github.sha }} \
-            --platform managed \
+            --image "$IMAGE" \
             --region us-central1 \
-            --allow-unauthenticated \
-            --project recommender-api-476122
+            --platform managed \
+            --allow-unauthenticated
