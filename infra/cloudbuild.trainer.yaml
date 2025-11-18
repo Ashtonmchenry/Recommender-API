@@ -1,0 +1,29 @@
+# infra/cloudbuild.trainer.yaml
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-trainer
+    args:
+      [
+        "build",
+        "-f",
+        "docker/trainer.Dockerfile",
+        "-t",
+        "$_TRAINER_IMAGE",
+        ".",
+      ]
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-trainer
+    args: ["push", "$_TRAINER_IMAGE"]
+
+substitutions:
+  # Just one substitution we actually use in the steps above
+  _TRAINER_IMAGE: "us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-trainer"
+
+images:
+  - "$_TRAINER_IMAGE"
+
+options:
+  # Allow extra substitutions if a trigger adds any, but we don't require them.
+  substitutionOption: ALLOW_LOOSE

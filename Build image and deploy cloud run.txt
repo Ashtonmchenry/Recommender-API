@@ -1,0 +1,27 @@
+--------------- Build image in Cloud Build and push to Artifact Registry --------------------
+
+$PROJECT_ID   = "recommender-api-476122"
+$REGION       = "us-central1"
+$REPO_NAME    = "reco"
+$SERVICE_NAME = "reco-api"
+$IMAGE_URI    = "$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$SERVICE_NAME:latest"
+
+# Submit build to Cloud Build using service.Dockerfile
+
+gcloud builds submit --config cloudbuild.yaml .
+
+--------------- Deploy cloud run ------------------------
+
+gcloud run deploy reco-api `
+  --image us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api:latest `
+  --region us-central1 `
+  --platform managed `
+  --allow-unauthenticated
+
+--------------- Check the deployed service URL --------------------------
+
+gcloud run services describe reco-api --region us-central1 --format="value(status.url)"
+
+
+
+

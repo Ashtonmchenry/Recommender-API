@@ -25,7 +25,7 @@ RUN python -m pip install --upgrade pip \
 COPY service/ /app/service
 COPY recommender/ /app/recommender
 
-# Let Python find your in-repo package "recommender"
+# Let Python find in-repo package "recommender"
 ENV PYTHONPATH=/app
 
 EXPOSE 8080
