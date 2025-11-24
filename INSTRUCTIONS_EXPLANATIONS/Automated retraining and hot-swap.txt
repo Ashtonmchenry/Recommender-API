@@ -1,0 +1,31 @@
+- Scheduled retrain workflow (.github/workflows/retrain.yml)
+
+Runs on a cron + manual trigger
+Installs trainer deps
+Runs python trainer/train_and_publish.py
+Commits new model_registry/vX.Y back to the repo
+
+- Model registry with multiple versions
+
+model_registry/v0.1, v0.2, v0.3, v0.4, …
+Each new version is created automatically by the workflow
+
+- Hot-swap support in the API
+
+service/app.py has /switch endpoint using your registry
+As long as Cloud Run passes MODEL_REGISTRY_ROOT=/app/model_registry (or equivalent) when deploying, the service can switch to any version present in model_registry/
+
+-validation (local)
+
+# Run the API
+docker run --rm -p 8080:8080 reco-service
+
+# Health
+curl http://localhost:8080/healthz
+
+# Switch to the latest version (for v0.4)
+curl -X POST "http://localhost:8080/switch?model=v0.4"
+
+# Then request some recommendations
+curl "http://localhost:8080/recommend?user_id=1&k=5"
+
