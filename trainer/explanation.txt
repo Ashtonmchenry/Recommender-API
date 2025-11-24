@@ -1,0 +1,21 @@
+Think of the trainer as a batch job whose only job is “make a new model version.”
+
+1. It loads training data (movies + ratings).
+
+2. It fits / retrains the model (ALS + any content features).
+
+3. It saves the trained model to disk (e.g. model.joblib).
+
+4. It writes metadata about that model (version number, when it was created, what data snapshot it used, git SHA, etc).
+
+5. Then it exits.
+
+- train_and_publish.py:
+
+figures out the next version of the model registry (v1.0, v1.1, …),
+
+copies the previous model.joblib forward (so switching still works even if we're not re-training a brand-new model)
+
+creates a meta.yaml with useful provenance fields plus a metadata.json for convenience
+
+gives a clean, registry-compatible version directory every time the trainer container runs.

@@ -92,7 +92,6 @@ _sem = asyncio.BoundedSemaphore(MAX_CONCURRENCY)
 # Model registry utilities
 # ----------------------------------------------------------------------------
 
-
 def _parse_created_at(raw: str | None) -> float | None:
     """Parse ISO-8601 timestamps from metadata and return epoch seconds."""
 
@@ -105,7 +104,6 @@ def _parse_created_at(raw: str | None) -> float | None:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
     return dt.timestamp()
-
 
 def _parse_metadata_text(text: str) -> dict[str, Any]:
     """Best-effort YAML/JSON parser without requiring PyYAML."""
@@ -181,8 +179,6 @@ class ModelBundle:
         top_indices = np.argpartition(scores, -k)[-k:]
         ordered = top_indices[np.argsort(-scores[top_indices])]
         return [int(self.inverse_item_map[int(i)]) for i in ordered[:k]]
-
-
 class ModelRegistry:
     """Thread-safe loader/cache for model artifacts in ``model_registry/``."""
 
@@ -307,7 +303,6 @@ try:
 except (FileNotFoundError, LookupError) as exc:
     logger.warning("Unable to load initial model '%s': %s", INITIAL_MODEL_VERSION, exc)
 
-
 def configure_registry(
     root: Path | str,
     version: str | None = None,
@@ -324,12 +319,9 @@ def configure_registry(
             logger.warning("Failed to activate %s from %s: %s", version, root, exc)
     return _REGISTRY
 
-
 # ----------------------------------------------------------------------------
 # Recommendation helpers
 # ----------------------------------------------------------------------------
-
-
 def _recommend_for_user(
     user_id: int,
     k: int,
@@ -356,18 +348,14 @@ def _recommend_for_user(
         logger.exception("Recommendation failure for model %s", bundle.version)
         raise HTTPException(status_code=500, detail="Failed to score recommendation") from exc
 
-
 def _as_plain_text(items: Iterable[int]) -> str:
     """Serialize ids for plaintext responses."""
 
     return ",".join(str(i) for i in items)
 
-
 # ----------------------------------------------------------------------------
 # Routes
 # ----------------------------------------------------------------------------
-
-
 @app.get("/health", response_model=dict)
 def health() -> dict:
     """Lightweight health endpoint consumed by Cloud Run / probes."""
@@ -381,7 +369,6 @@ def health() -> dict:
 def healthz() -> str:
     return "ok"
 
-
 @app.get("/recommend")
 def recommend(user_id: int, k: int = 10, model_version: str | None = None):
     items, resolved_version = _recommend_for_user(user_id=user_id, k=k, model_version=model_version)
@@ -394,7 +381,6 @@ def recommend(user_id: int, k: int = 10, model_version: str | None = None):
     # Enforce Avro schema at the service boundary
     assert_valid(RESPONSE_SCHEMA, payload)
     return payload
-
 
 @app.get("/recommend/plain", response_class=PlainTextResponse)
 def recommend_plain(user_id: int, k: int = 10, model_version: str | None = None) -> str:
@@ -410,7 +396,6 @@ def recommend_plain(user_id: int, k: int = 10, model_version: str | None = None)
     )
     return _as_plain_text(items)
 
-
 @app.post("/switch")
 def switch(model_version: str):
     """Hot-swap the active model version without redeploying the service."""
@@ -423,13 +408,11 @@ def switch(model_version: str):
         raise HTTPException(status_code=500, detail="Failed to switch model") from exc
     return {"status": "ok", "model_version": bundle.version, "metadata": bundle.metadata}
 
-
 @app.get("/metrics")
 def metrics():
     """Prometheus exposition endpoint."""
 
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
 
 @app.middleware("http")
 async def backpressure_guard(request: Request, call_next):

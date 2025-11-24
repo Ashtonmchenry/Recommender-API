@@ -1,0 +1,7 @@
+{
+  "model_version": "v0.3",
+  "trained_at": 1763940391,
+  "data_snapshot_id": "snap-1763940391",
+  "pipeline_git_sha": "local-dev",
+  "container_image_digest": "unknown"
+}

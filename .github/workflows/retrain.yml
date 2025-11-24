@@ -1,0 +1,56 @@
+name: nightly-retrain
+
+on:
+  schedule:
+    # Once per day at 08:00 UTC
+    - cron: "0 8 * * *"
+  # Let you run it manually from the Actions tab
+  workflow_dispatch: {}
+
+# Make sure the default GITHUB_TOKEN can write to the repo
+permissions:
+  contents: write
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        # uses GITHUB_TOKEN with write perms
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install trainer dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.trainer.txt
+
+      - name: Run trainer (publish new model version)
+        env:
+          MODEL_REGISTRY: model_registry
+          DATA_SNAPSHOT_ID: nightly
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          source .venv/bin/activate
+          python trainer/train_and_publish.py
+
+      - name: Commit and push updated model_registry
+        env:
+          GIT_AUTHOR_NAME: "github-actions[bot]"
+          GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
+        run: |
+          git config user.name "${GIT_AUTHOR_NAME}"
+          git config user.email "${GIT_AUTHOR_EMAIL}"
+          git add model_registry
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Nightly model version bump"
+          git push

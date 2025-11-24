@@ -1,3 +1,5 @@
+# DEPRECATED
+
 # syntax=docker/dockerfile:1
 
 ########################################
@@ -16,10 +18,10 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends build-essential gcc \
  && rm -rf /var/lib/apt/lists/*
 
-COPY ingestor/requirements.txt ./requirements.txt
+COPY recommender_api/requirements.txt ./requirements.txt
 RUN pip install --prefix=/install -r requirements.txt
 
-COPY ingestor ./ingestor
+COPY recommender_api ./recommender_api
 
 ########################################
 # Runtime stage
@@ -35,7 +37,9 @@ RUN useradd -u 1000 -m appuser && chown -R appuser /app
 USER appuser
 
 COPY --from=builder /install /usr/local
-COPY --from=builder /app/ingestor ./ingestor
+COPY --from=builder /app/recommender_api ./recommender_api
 
-# Adjust to your ingestion entrypoint (module or script)
-CMD ["python", "-m", "ingestor.main"]
+EXPOSE 8080
+
+# If your module/path is different, tweak the module below.
+CMD ["uvicorn", "recommender_api.main:app", "--host", "0.0.0.0", "--port", "8080"]

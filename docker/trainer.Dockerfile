@@ -12,36 +12,36 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# System deps for building wheels if needed
 RUN apt-get update \
  && apt-get install -y --no-install-recommends build-essential gcc \
  && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps
-COPY trainer/requirements.txt ./requirements.txt
-RUN pip install --prefix=/install -r requirements.txt
+# Trainer-only dependencies
+COPY trainer/requirements.trainer.txt .
+RUN pip install --prefix=/install -r requirements.trainer.txt
 
-# Copy only the trainer code
+# Copy code used by the trainer
+COPY recommender ./recommender
 COPY trainer ./trainer
+COPY data ./data
 
 ########################################
 # Runtime stage
 ########################################
-FROM python:3.12-slim
+FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Non-root user
 RUN useradd -u 1000 -m appuser && chown -R appuser /app
 USER appuser
 
-# Copy installed packages + trainer source
 COPY --from=builder /install /usr/local
+COPY --from=builder /app/recommender ./recommender
 COPY --from=builder /app/trainer ./trainer
+COPY --from=builder /app/data ./data
 
-# Adjust the module/entrypoint to match your trainer
-# e.g. trainer.main:main or trainer.train:main etc.
-CMD ["python", "-m", "trainer.main"]
+# Trainer entrypoint: run the retrain+publish script
+CMD ["python", "trainer/train_and_publish.py"]

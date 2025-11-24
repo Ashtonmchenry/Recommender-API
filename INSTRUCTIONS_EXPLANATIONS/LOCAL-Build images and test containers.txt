@@ -1,0 +1,19 @@
+# Build service image and test service container
+docker build -f docker/service.Dockerfile -t reco-service .
+docker run --rm -p 8080:8080 reco-service
+curl http://localhost:8080/healthz
+
+# Build trainer image and test trainer container
+docker build -f docker/trainer.Dockerfile -t reco-trainer .
+docker run --rm -e MODEL_REGISTRY=/tmp/model_registry reco-trainer
+
+# mount container files for model_registry to local host
+# in order to see version changes
+docker run --rm `
+  -e MODEL_REGISTRY=/tmp/model_registry `
+  -v ${PWD}/model_registry:/tmp/model_registry `
+  reco-trainer
+
+
+# (In new terminal)
+curl http://localhost:8080/healthz

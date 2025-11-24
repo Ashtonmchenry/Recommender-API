@@ -1,0 +1,17 @@
+The model registry is just where all those model versions live, plus their metadata.
+
+Each vX.Y folder is one immutable model version. It contains:
+the serialized model artifact (e.g. model.joblib), meta.yaml with provenance info (version, created_at, data_snapshot_id, git_sha, image_digest, maybe metrics), optionally a model_card.md.
+
+HOW IT WORKS WITH API:
+
+The trainer writes new subfolders into model_registry/ (v1.0, v1.1, …).
+The API service (service/app.py) knows the path of the registry (via MODEL_REGISTRY_ROOT).
+On startup it loads a default version (e.g. INITIAL_MODEL_VERSION).
+The /switch endpoint can change the active version by pointing to a different vX.Y folder in the registry.
+
+LIFECYCLE:
+
+Trainer runs → creates model_registry/v1.1/ with model.joblib + meta.yaml.
+hit /switch?model=v1.1 on the API.
+The service starts using the new model for recommendations.

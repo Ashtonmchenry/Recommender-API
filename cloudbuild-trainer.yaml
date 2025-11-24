@@ -1,3 +1,5 @@
+# Cloud Build config that builds reco-trainer and runs it, writing to the model registry bucket or folder
+
 substitutions:
   _REGION: us-central1
   _REPO: reco

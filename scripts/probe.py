@@ -76,7 +76,7 @@ def probe_once():
     prod_req.flush()
     print("→ sent", req_event)
 
-    # Hit your API to get some ids (or fake them if call fails)
+    # Hit API to get some ids (or fake them if call fails)
     try:
         r = requests.get(f"{API}/recommend/{user}?k=5", timeout=5)
         r.raise_for_status()
@@ -102,7 +102,7 @@ def probe_once():
 
 
 def main():
-    # one-shot; change to a loop if you want it to run continuously
+    # change to a loop in order to run continuously
     probe_once()
 
 

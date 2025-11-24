@@ -1,0 +1,20 @@
+HOW RECOMMENDER API WORKS
+
+- Multi stage dockerfiles:
+service.dockerfile and trainer.dockerfile
+
+- Cloud Run deploy using service.dockerfile which is wired in:
+cloudbuild.yaml & cloudbuild-docker.yaml
+
+- Model registry structure:
+model_registry/v0.1 and model_registry/v0.2 with meta.yaml, model_card.md and model.joblib (for v0.2).
+
+- Service hot-swap endpoint exists:
+In service/app.py there’s @app.post("/switch") that activates a requested version from the registry.
+
+- Basic trainer job:
+trainer/train_and_publish.py that creates model_registry/vX.Y/metadata.json.
+cloudbuild-trainer.yaml builds docker/trainer.Dockerfile and runs the trainer container with MODEL_REGISTRY=/registry
+
+
+

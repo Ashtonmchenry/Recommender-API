@@ -1,3 +1,5 @@
+# Build image and deploy to Cloud Run
+
 timeout: "1200s"
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -42,7 +44,7 @@ steps:
     - --platform=managed
     - --allow-unauthenticated
     - --set-env-vars
-    - MODEL_REGISTRY=/app/model_registry
+    - MODEL_REGISTRY_ROOT=/app/model_registry
 
 images:
 - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE}:latest
