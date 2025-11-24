@@ -1,0 +1,4 @@
+# run prometheus
+
+cd infra
+docker compose -f docker-compose.monitoring.yml up
