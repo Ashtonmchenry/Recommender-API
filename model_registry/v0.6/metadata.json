@@ -1,0 +1,9 @@
+{
+  "model_version": "v0.6",
+  "created_at": "2025-11-25T08:25:43Z",
+  "artifact": "model.joblib",
+  "data_snapshot_id": "nightly",
+  "pipeline_git_sha": "466a4a1fa7cffaab0003e5d9749ba8f66fe91f9c",
+  "container_image_digest": "unknown",
+  "metrics": {}
+}
