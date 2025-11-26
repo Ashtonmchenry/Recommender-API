@@ -1,4 +1,6 @@
-# run prometheus
+# run Prometheus + Grafana
 
 cd infra
 docker compose -f docker-compose.monitoring.yml up
+
+# Grafana: http://localhost:3000

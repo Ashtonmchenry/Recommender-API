@@ -24,6 +24,10 @@ docker run --rm -p 8080:8080 reco-service
 # Health
 curl http://localhost:8080/healthz
 
+# Send empty body
+curl -X POST "https://reco-api-231383754275.us-central1.run.app/switch?model_version=v0.4" -d ""
+
+
 # Switch to the latest version (for v0.4)
 curl -X POST "http://localhost:8080/switch?model_version=v0.4"
 
