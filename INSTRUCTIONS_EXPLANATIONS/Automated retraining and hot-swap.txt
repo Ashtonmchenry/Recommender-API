@@ -18,7 +18,7 @@ As long as Cloud Run passes MODEL_REGISTRY_ROOT=/app/model_registry (or equivale
 -validation (local)
 
 # Run the API
-docker build -f docker/service.Dockerfile -t reco-service .
+docker build -f service.Dockerfile -t reco-service .
 docker run --rm -p 8080:8080 reco-service
 
 # Health

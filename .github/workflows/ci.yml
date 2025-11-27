@@ -55,8 +55,15 @@ jobs:
       - name: Configure docker for Artifact Registry
         run: |
           gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+      
+      # 4) GCP Credentials
+      - name: Set up GCP credentials
+        run: |
+          echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > ${HOME}/gcp-key.json
+          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
+          gcloud config set project ${{ env.GCP_PROJECT }}
 
-      # 4) Build and push the image
+      # 5) Build and push the image
       - name: Build and push image
         env:
           IMAGE: "us-central1-docker.pkg.dev/${{ env.GCP_PROJECT }}/recommender-api-476122/reco/reco-api"
@@ -64,7 +71,7 @@ jobs:
           # Build using the service Dockerfile in ./docker
           gcloud builds submit --tag gcr.io/recommender-api-476122/us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api service.Dockerfile
 
-      # 5) Deploy to Cloud Run
+      # 6) Deploy to Cloud Run
       - name: Deploy to Cloud Run
         run: |
           IMAGE="us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api"
