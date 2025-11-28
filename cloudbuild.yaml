@@ -19,7 +19,7 @@ steps:
     - -f
     - service.Dockerfile
     - -t
-    - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE}:latest
+    - us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api
     - .
 
 # Push it
@@ -27,7 +27,7 @@ steps:
   id: push
   args:
     - push
-    - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE}:latest
+    - us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api
 
 # Deploy to Cloud Run
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk
@@ -38,7 +38,7 @@ steps:
     - deploy
     - ${_SERVICE}
     - --image
-    - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE}:latest
+    - us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api
     - --region
     - ${_REGION}
     - --platform=managed
@@ -47,4 +47,4 @@ steps:
     - MODEL_REGISTRY_ROOT=/app/model_registry
 
 images:
-- ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE}:latest
+- us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api
