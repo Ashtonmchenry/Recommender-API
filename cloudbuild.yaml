@@ -11,13 +11,13 @@ substitutions:
   _SERVICE: "reco-api"
 
 steps:
-# Build the image from docker/service.Dockerfile
+# Build the image from service.Dockerfile
 - name: gcr.io/cloud-builders/docker
   id: build
   args:
     - build
     - -f
-    - docker/service.Dockerfile
+    - service.Dockerfile
     - -t
     - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE}:latest
     - .

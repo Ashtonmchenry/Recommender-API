@@ -1,5 +1,5 @@
 # Build service image and test service container
-docker build -f docker/service.Dockerfile -t reco-service .
+docker build -f service.Dockerfile -t reco-service .
 docker run --rm -p 8080:8080 reco-service
 curl http://localhost:8080/healthz
 
