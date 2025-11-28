@@ -4,11 +4,11 @@ timeout: "1200s"
 options:
   logging: CLOUD_LOGGING_ONLY
 
-substitutions:
-  _REGION: "us-central1"
-  _PROJECT_ID: "recommender-api-476122"
-  _REPO: "reco"
-  _SERVICE: "reco-api"
+# substitutions:
+#   _REGION: "us-central1"
+#   _PROJECT_ID: "recommender-api-476122"
+#   _REPO: "reco"
+#   _SERVICE: "reco-api"
 
 steps:
 # Build the image from service.Dockerfile
