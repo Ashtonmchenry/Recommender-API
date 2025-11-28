@@ -18,3 +18,5 @@ Thumbs.db
 .pytest_cache/
 dist/
 build/
+# kcat
+infra/kafka.env
