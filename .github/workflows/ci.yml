@@ -60,8 +60,7 @@ jobs:
       - name: Build and push image
         run: |
           # Build using the service Dockerfile in ./docker
-          gcloud builds submit ./docker --tag "$IMAGE"
-
+          gcloud builds submit --tag us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api --dockerfile docker/service.Dockerfile .
       # 5) Deploy to Cloud Run
       - name: Deploy to Cloud Run
         run: |
