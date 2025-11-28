@@ -36,11 +36,13 @@ steps:
   args:
     - run
     - deploy
-    - ${_SERVICE}
+    # - ${_SERVICE}
+    - reco-api
     - --image
     - us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api
     - --region
-    - ${_REGION}
+    # - ${_REGION}
+    - us-central1
     - --platform=managed
     - --allow-unauthenticated
     - --set-env-vars
