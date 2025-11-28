@@ -17,7 +17,7 @@ steps:
   args:
     - build
     - -f
-    - service.Dockerfile
+    - docker/service.Dockerfile
     - -t
     - us-central1-docker.pkg.dev/recommender-api-476122/reco/reco-api
     - .
