@@ -20,3 +20,4 @@ dist/
 build/
 # kcat
 infra/kcat.conf
+infra/kafka.env
