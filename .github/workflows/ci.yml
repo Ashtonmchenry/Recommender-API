@@ -65,8 +65,7 @@ jobs:
           # gcloud builds submit docker/service.Dockerfile \
           #   --tag "$IMAGE"
           gcloud builds submit . \
-          --config=cloudbuild.yaml \
-          --substitutions=_IMAGE="$IMAGE"
+          --config=cloudbuild.yaml
 
       # 5) Deploy to Cloud Run
       - name: Deploy to Cloud Run
