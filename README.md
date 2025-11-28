@@ -1,9 +1,5 @@
 # Cloud-Native Recommender (Starter)
 
-This repository is your starting point for the ML & AI in Production term project.
-You will deploy a FastAPI recommender, ingest Kafka events, run CI/CD, monitor SLOs,
-and iterate models.
-
 ## Quickstart
 1. **Python setup**
    ```bash
