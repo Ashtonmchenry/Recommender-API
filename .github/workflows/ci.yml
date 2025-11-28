@@ -58,8 +58,6 @@ jobs:
 
       # 4) Build and push the image
       - name: Build and push image
-        env:
-          IMAGE: "us-central1-docker.pkg.dev/${{ env.GCP_PROJECT }}/recommender-api-476122/reco/reco-api"
         run: |
           # Build using the service Dockerfile in ./docker
           gcloud builds submit ./docker --tag "$IMAGE"
